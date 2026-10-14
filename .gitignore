@@ -1,0 +1,11 @@
+# Private data - never commit
+tiffin.db
+*.db
+backups/
+.secret_key
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
