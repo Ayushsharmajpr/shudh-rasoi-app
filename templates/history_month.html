@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% set active_tab = "history" %}
+{% macro m(v) %}{% set x = v or 0 %}{{ '−' if x < 0 }}{{ cur }}{{ "{:,.0f}".format(x|abs) }}{% endmacro %}
+{% block title %}{{ data.label }} — Month history — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">{{ data.label }}
+    {% if snap %}<span class="badge closed" style="vertical-align:middle;">Closed</span>
+    {% elif is_current %}<span class="badge open" style="vertical-align:middle;">In progress</span>
+    {% else %}<span class="badge open" style="vertical-align:middle;">Open</span>{% endif %}
+  </div>
+  <a href="{{ url_for('history') }}" class="today-badge">← All months</a>
+</div>
+
+<div class="month-nav">
+  {% if prev_ym %}<a href="{{ url_for('history_month', ym=prev_ym) }}" class="btn-link toggle">← {{ prev_ym }}</a>{% endif %}
+  {% if next_ym %}<a href="{{ url_for('history_month', ym=next_ym) }}" class="btn-link toggle">{{ next_ym }} →</a>{% endif %}
+</div>
+
+{% if snap %}
+<div class="snapshot-banner closed">
+  <strong>Saved snapshot</strong> — closed {{ snap.closed_at }} ({{ 'automatically' if snap.closed_by == 'auto' else 'manually' }}{% if snap.version > 1 %}, version {{ snap.version }}{% endif %}).
+  Every figure below is frozen and cannot change, whatever you edit later.
+</div>
+{% elif is_future %}
+<div class="snapshot-banner">This month hasn't started yet, so there is nothing to show.</div>
+{% else %}
+<div class="snapshot-banner">
+  <strong>Live view</strong> — {{ 'this month is still in progress, so figures update as you log entries.' if is_current else 'this month is not closed yet, so figures are live.' }}
+  {% if versions %}It was closed before and then reopened for corrections.{% endif %}
+</div>
+{% endif %}
+
+<div class="history-actions">
+  {% if can_close %}
+  <form method="POST" action="{{ url_for('history_close', ym=ym) }}" onsubmit="return confirmAction('Close {{ data.label }}? Its figures are saved permanently and the month is locked against edits (you can still reopen it if needed).');" class="inline-form">
+    <button class="btn" type="submit">Close this month now</button>
+  </form>
+  {% endif %}
+  {% if snap %}
+  <form method="POST" action="{{ url_for('history_reopen', ym=ym) }}" class="inline-form" style="display:flex; gap:8px; align-items:center;"
+        onsubmit="return confirmAction('Reopen {{ data.label }}? The saved snapshot is kept on file, but the month becomes editable again until you close it.');">
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:12px; color:var(--ink-soft);"><input type="checkbox" name="confirm" value="1" style="width:auto;" required> I need to correct this month</label>
+    <button class="btn secondary" type="submit">Reopen month</button>
+  </form>
+  {% endif %}
+  <a class="btn secondary" style="text-decoration:none;" href="{{ url_for('history_export', ym=ym) }}">Download snapshot (JSON)</a>
+</div>
+
+<div class="hero-row">
+  <div class="hero-stat">
+    <div class="hero-label">Revenue <span class="hero-sub">({{ data.label }})</span></div>
+    <div class="hero-value">{{ m(data.kpis.revenue) }}</div>
+  </div>
+  <div class="hero-op">−</div>
+  <div class="hero-stat">
+    <div class="hero-label">Business expense</div>
+    <div class="hero-value expense">{{ m(data.kpis.business_expense) }}</div>
+  </div>
+  <div class="hero-op">=</div>
+  <div class="hero-stat hero-featured">
+    <div class="hero-label">Net profit</div>
+    <div class="hero-value {{ 'warn' if data.kpis.profit < 0 }}">{{ m(data.kpis.profit) }}</div>
+    <div class="hero-margin">{{ "%.1f"|format(data.kpis.margin) }}% margin</div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Billed</div></div><div class="value">{{ m(data.kpis.billed) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Payments received</div></div><div class="value">{{ m(data.kpis.payments_received) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Extra-order income</div></div><div class="value">{{ m(data.kpis.extra_income) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Personal expenses</div></div><div class="value">{{ m(data.kpis.personal_expense) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Savings set aside</div></div><div class="value">{{ m(data.kpis.savings_deposits) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Remaining funds (month)</div></div><div class="value {{ 'warn' if data.kpis.remaining_funds < 0 }}">{{ m(data.kpis.remaining_funds) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Customers billed / served</div></div><div class="value">{{ data.active_customers }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Dues outstanding {{ 'at close' if snap else 'now' }}</div></div><div class="value {{ 'warn' if data.outstanding_dues > 0 }}">{{ m(data.outstanding_dues) }}</div></div>
+</div>
+
+<div class="section-head"><h2>Cumulative to end of {{ data.label }}</h2><span class="hint">Lifetime totals up to this month</span></div>
+<div class="kpi-grid">
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Revenue</div></div><div class="value">{{ m(data.cumulative.revenue) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Business expense</div></div><div class="value">{{ m(data.cumulative.business_expense) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Net profit</div></div><div class="value {{ 'warn' if data.cumulative.profit < 0 }}">{{ m(data.cumulative.profit) }}</div></div>
+  <div class="kpi-card"><div class="kpi-top"><div class="label">Remaining funds</div></div><div class="value {{ 'warn' if data.cumulative.remaining_funds < 0 }}">{{ m(data.cumulative.remaining_funds) }}</div></div>
+</div>
+
+{% if data.rate_changes %}
+<div class="section-head"><h2>Rate / plan changes taking effect this month</h2></div>
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Customer</th><th class="num">Previous rate</th><th class="num">New rate</th><th>Plan</th></tr></thead>
+  <tbody>
+    {% for r in data.rate_changes %}
+    <tr><td>{{ r.customer }}</td><td class="num">{{ m(r.from_rate) }}</td><td class="num">{{ m(r.to_rate) }}</td><td>{{ r.to_plan }}{{ ' (changed)' if r.plan_changed }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="section-head"><h2>Customers — rate, tiffins and final amount</h2></div>
+{% if data.customers|length == 0 %}
+  <div class="empty-state">No customers had a plan or bill in this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead>
+    <tr><th>Customer</th><th>Plan</th><th class="num">Rate / mo</th><th class="num">Billable days</th><th class="num">Total meals</th><th class="num">Taken</th><th class="num">Skipped</th><th class="num">Leave</th><th class="num">Final amount</th><th>Invoice</th><th class="num">Received</th></tr>
+  </thead>
+  <tbody>
+    {% for r in data.customers %}
+    <tr>
+      <td>{{ r.name }}{% if r.pg_name %}<span class="tag-note">{{ r.pg_name }}</span>{% endif %}</td>
+      <td>{{ r.calc.meals|map('capitalize')|join(' + ') or '—' }}</td>
+      <td class="num">{{ m(r.calc.rate.monthly) }}</td>
+      <td class="num">{{ r.calc.billable_days }} / {{ r.calc.days_in_period }}</td>
+      <td class="num">{{ r.calc.scheduled_meals }}</td>
+      <td class="num">{{ r.calc.delivered_meals }}</td>
+      <td class="num">{{ r.calc.skipped_meals }}</td>
+      <td class="num">{{ r.calc.leave_meals }}</td>
+      <td class="num">
+        {% if r.invoiced %}{{ m(r.invoice_total) }}
+        {% else %}<span class="text-muted">{{ m(r.calc.calculated_amount) }}</span><span class="tag-note">not invoiced</span>{% endif %}
+        {% if r.records_changed %}<span class="tag-note">records changed after invoice</span>{% endif %}
+      </td>
+      <td>{% if r.invoice_id %}<a href="{{ url_for('invoice_detail', iid=r.invoice_id) }}">{{ r.invoice_number }}</a>{% else %}—{% endif %}</td>
+      <td class="num">{{ m(r.received) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="page-sub mt-0">Amounts for invoiced customers are exactly what was billed; “Taken / Skipped / Leave” count individual meals. Skipped tiffins are not deducted from a bill — only full leave days are.</div>
+{% endif %}
+
+<div class="report-grid" style="margin: 22px 0 8px; align-items:start;">
+  <div>
+    <div class="section-head"><h2>Business expenses by category</h2></div>
+    {% if data.expense_by_category|length == 0 %}<div class="empty-state">No business expenses.</div>
+    {% else %}
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>
+      <tbody>{% for r in data.expense_by_category %}<tr><td>{{ r.category }}</td><td class="num">{{ m(r.total) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+  </div>
+  <div>
+    <div class="section-head"><h2>Cash / UPI / Bank</h2></div>
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Mode</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th></tr></thead>
+      <tbody>{% for r in data.cash_breakdown %}<tr><td>{{ r.mode }}</td><td class="num">{{ m(r['in']) }}</td><td class="num">{{ m(r.out) }}</td><td class="num">{{ m(r.net) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="section-head"><h2>Every entry in {{ data.label }}</h2></div>
+<div class="detail-tabs">
+  <button class="active" onclick="showHistTab('payments', this)">Payments <span class="badge-count">{{ data.entries.payments|length }}</span></button>
+  <button onclick="showHistTab('extras', this)">Extra orders <span class="badge-count">{{ data.entries.extra_orders|length }}</span></button>
+  <button onclick="showHistTab('expenses', this)">Expenses <span class="badge-count">{{ data.entries.business_expenses|length + data.entries.personal_expenses|length }}</span></button>
+  <button onclick="showHistTab('money', this)">Savings &amp; income <span class="badge-count">{{ data.entries.savings|length + data.entries.personal_income|length }}</span></button>
+  <button onclick="showHistTab('invoices', this)">Invoices <span class="badge-count">{{ data.entries.invoices|length }}</span></button>
+  <button onclick="showHistTab('tiffin', this)">Tiffin records <span class="badge-count">{{ data.entries.tiffin_records|length }}</span></button>
+</div>
+
+<div id="tab-payments" class="tab-panel active">
+  {% if data.entries.payments|length == 0 %}<div class="empty-state">No payments.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Date</th><th>Customer</th><th class="num">Amount</th><th class="center">Mode</th><th>Invoice</th><th>Notes</th></tr></thead>
+    <tbody>{% for e in data.entries.payments %}<tr><td>{{ e.date }}</td><td>{{ e.customer }}</td><td class="num">{{ m(e.amount) }}</td><td class="center">{{ e.payment_mode }}</td><td>{{ e.invoice_number or '—' }}</td><td>{{ e.notes or '' }}</td></tr>{% endfor %}</tbody>
+  </table></div>{% endif %}
+</div>
+
+<div id="tab-extras" class="tab-panel">
+  {% if data.entries.extra_orders|length == 0 %}<div class="empty-state">No extra orders.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Date</th><th>Customer / Guest</th><th>Description</th><th class="num">Amount</th><th class="center">Status</th></tr></thead>
+    <tbody>{% for e in data.entries.extra_orders %}<tr><td>{{ e.date }}</td><td>{{ e.who }}</td><td>{{ e.description or '' }}</td><td class="num">{{ m(e.amount) }}</td><td class="center"><span class="badge {{ 'paid' if e.payment_status=='Paid' else 'unpaid' }}">{{ e.payment_status }}</span>{% if e.invoice_id %}<span class="tag-note">on invoice</span>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>{% endif %}
+</div>
+
+<div id="tab-expenses" class="tab-panel">
+  {% if data.entries.business_expenses|length + data.entries.personal_expenses|length == 0 %}<div class="empty-state">No expenses.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th class="num">Amount</th><th class="center">Mode</th></tr></thead>
+    <tbody>
+      {% for e in data.entries.business_expenses %}<tr><td>{{ e.date }}</td><td>Business</td><td>{{ e.category }}</td><td>{{ e.description or '' }}</td><td class="num">{{ m(e.amount) }}</td><td class="center">{{ e.payment_mode }}</td></tr>{% endfor %}
+      {% for e in data.entries.personal_expenses %}<tr><td>{{ e.date }}</td><td>Personal</td><td>{{ e.category }}</td><td>{{ e.description or '' }}</td><td class="num">{{ m(e.amount) }}</td><td class="center">{{ e.payment_mode }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>{% endif %}
+</div>
+
+<div id="tab-money" class="tab-panel">
+  {% if data.entries.savings|length + data.entries.personal_income|length == 0 %}<div class="empty-state">No savings or personal income entries.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Date</th><th>Entry</th><th>Description</th><th class="num">Amount</th><th class="center">Mode</th></tr></thead>
+    <tbody>
+      {% for e in data.entries.savings %}<tr><td>{{ e.date }}</td><td>Savings — {{ e.entry_type }}</td><td>{{ e.description or '' }}</td><td class="num">{{ m(e.amount) }}</td><td class="center">{{ e.payment_mode or '—' }}</td></tr>{% endfor %}
+      {% for e in data.entries.personal_income %}<tr><td>{{ e.date }}</td><td>Personal income — {{ e.source }}</td><td>{{ e.description or '' }}</td><td class="num">{{ m(e.amount) }}</td><td class="center">{{ e.payment_mode or '—' }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>{% endif %}
+</div>
+
+<div id="tab-invoices" class="tab-panel">
+  {% if data.entries.invoices|length == 0 %}<div class="empty-state">No invoices for this month.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Invoice #</th><th>Customer</th><th class="num">Rate / mo</th><th class="num">Total meals</th><th class="num">Taken</th><th class="num">Skipped</th><th class="num">Subscription</th><th class="num">Extras</th><th class="num">Total</th></tr></thead>
+    <tbody>{% for e in data.entries.invoices %}<tr><td>{{ e.invoice_number }}</td><td>{{ e.customer }}</td><td class="num">{{ m(e.rate_monthly) }}</td><td class="num">{{ e.scheduled_meals }}</td><td class="num">{{ e.delivered_meals }}</td><td class="num">{{ e.skipped_meals }}</td><td class="num">{{ m(e.final_subscription_amount) }}</td><td class="num">{{ m(e.extra_amount) }}</td><td class="num">{{ m(e.final_total) }}</td></tr>{% endfor %}</tbody>
+  </table></div>{% endif %}
+</div>
+
+<div id="tab-tiffin" class="tab-panel">
+  {% if data.entries.tiffin_records|length == 0 %}<div class="empty-state">No skipped or leave records this month — everything was delivered.</div>{% else %}
+  <div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Date</th><th>Customer</th><th>Meal</th><th class="center">Status</th></tr></thead>
+    <tbody>{% for e in data.entries.tiffin_records %}<tr><td>{{ e.date }}</td><td>{{ e.customer }}</td><td>{{ e.meal|capitalize }}</td><td class="center"><span class="rec-chip {{ e.status|lower }}">{{ e.status }}</span></td></tr>{% endfor %}</tbody>
+  </table></div>{% endif %}
+</div>
+
+{% if versions|length > 0 %}
+<div class="section-head"><h2>Snapshot versions</h2></div>
+<div class="table-wrap"><table class="ledger">
+  <thead><tr><th>Version</th><th>Status</th><th>Closed</th><th>By</th><th>Superseded</th></tr></thead>
+  <tbody>{% for v in versions %}<tr><td>v{{ v.version }}</td><td>{{ 'Active' if v.status == 'active' else 'Superseded (month was reopened)' }}</td><td>{{ v.closed_at }}</td><td>{{ v.closed_by|capitalize }}</td><td>{{ v.superseded_at or '—' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showHistTab(name, btn){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.detail-tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

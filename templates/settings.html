@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% set active_tab = "settings" %}
+{% block title %}Settings — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Settings</div>
+</div>
+<div class="page-sub">Your logo, payment QR and business details used on invoices, plus backup and restore for your data.</div>
+
+<div class="section-head" id="brand"><h2>Branding &amp; payments</h2></div>
+<div class="brand-grid">
+  <div class="brand-card" id="brand-logo">
+    <div class="brand-head"><h3>Company logo</h3>
+      {% if brand.logo %}<span class="badge paid">Uploaded</span>{% else %}<span class="badge">Not set</span>{% endif %}</div>
+    <p class="hint">Shown in the sidebar, the browser tab icon and at the top of every invoice PDF.</p>
+    <form method="POST" action="{{ url_for('upload_brand', kind='logo') }}" enctype="multipart/form-data" class="brand-form" data-kind="logo">
+      <label class="dropzone{{ ' has-img' if brand.logo }}" for="file-logo">
+        <div class="preview checker">
+          <img id="prev-logo" alt="Company logo preview" {% if brand.logo %}src="{{ brand.logo.url }}"{% else %}hidden{% endif %}>
+          <div class="empty" {% if brand.logo %}hidden{% endif %}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            <strong>Click to choose</strong><span>or drag &amp; drop here</span></div>
+        </div>
+        <input type="file" id="file-logo" name="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      </label>
+      <div class="brand-meta" id="meta-logo">{% if brand.logo %}{{ brand.logo.filename }} · {{ brand.logo.width }}×{{ brand.logo.height }}px · {{ brand.logo.size_kb }} KB{% else %}PNG, JPG or WEBP · up to 4 MB{% endif %}</div>
+      <div class="brand-error" id="err-logo" role="alert" hidden></div>
+      <div class="brand-actions">
+        <button type="button" class="btn secondary pick" data-for="file-logo">{{ 'Replace' if brand.logo else 'Choose image' }}</button>
+        <button type="submit" class="btn save" disabled>{{ 'Save' if brand.logo else 'Upload' }}</button>
+        <button type="button" class="btn-link cancel" hidden>Cancel</button>
+      </div>
+    </form>
+    {% if brand.logo %}
+    <form method="POST" action="{{ url_for('remove_brand', kind='logo') }}" class="brand-remove" onsubmit="return confirmAction('Remove the company logo? It will be replaced by the default SR mark everywhere.')">
+      <button class="btn-link danger" type="submit">Remove company logo</button>
+    </form>
+    {% endif %}
+    {% if latest_invoice_id %}<a class="btn-link" href="{{ url_for('invoice_pdf', iid=latest_invoice_id) }}" target="_blank" rel="noopener">Preview on latest invoice (PDF) →</a>{% endif %}
+  </div>
+  <div class="brand-card" id="brand-qr">
+    <div class="brand-head"><h3>Payment QR code</h3>
+      {% if brand.qr %}<span class="badge paid">Uploaded</span>{% else %}<span class="badge">Not set</span>{% endif %}</div>
+    <p class="hint">Your payment QR code. It is printed on every invoice so customers can scan and pay.</p>
+    <form method="POST" action="{{ url_for('upload_brand', kind='qr') }}" enctype="multipart/form-data" class="brand-form" data-kind="qr">
+      <label class="dropzone{{ ' has-img' if brand.qr }}" for="file-qr">
+        <div class="preview ">
+          <img id="prev-qr" alt="Payment QR code preview" {% if brand.qr %}src="{{ brand.qr.url }}"{% else %}hidden{% endif %}>
+          <div class="empty" {% if brand.qr %}hidden{% endif %}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            <strong>Click to choose</strong><span>or drag &amp; drop here</span></div>
+        </div>
+        <input type="file" id="file-qr" name="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      </label>
+      <div class="brand-meta" id="meta-qr">{% if brand.qr %}{{ brand.qr.filename }} · {{ brand.qr.width }}×{{ brand.qr.height }}px · {{ brand.qr.size_kb }} KB{% else %}PNG, JPG or WEBP · up to 4 MB{% endif %}</div>
+      <div class="brand-error" id="err-qr" role="alert" hidden></div>
+      <div class="brand-actions">
+        <button type="button" class="btn secondary pick" data-for="file-qr">{{ 'Replace' if brand.qr else 'Choose image' }}</button>
+        <button type="submit" class="btn save" disabled>{{ 'Save' if brand.qr else 'Upload' }}</button>
+        <button type="button" class="btn-link cancel" hidden>Cancel</button>
+      </div>
+    </form>
+    {% if brand.qr %}
+    <form method="POST" action="{{ url_for('remove_brand', kind='qr') }}" class="brand-remove" onsubmit="return confirmAction('Remove the payment QR code? Invoices will no longer show a payment QR.')">
+      <button class="btn-link danger" type="submit">Remove payment QR code</button>
+    </form>
+    {% endif %}
+    
+    {% if latest_invoice_id %}<a class="btn-link" href="{{ url_for('invoice_pdf', iid=latest_invoice_id) }}" target="_blank" rel="noopener">Preview on latest invoice (PDF) →</a>{% endif %}
+  </div>
+</div>
+
+<div class="section-head"><h2>Business details</h2></div>
+<form class="entry-form" method="POST" action="{{ url_for('settings_page') }}" style="flex-direction:column; align-items:stretch;">
+  <div style="display:flex; flex-wrap:wrap; gap:16px;">
+    <div class="field grow">
+      <label for="business_name">Business name</label>
+      <input type="text" id="business_name" name="business_name" value="{{ settings.business_name or '' }}">
+    </div>
+    <div class="field">
+      <label for="currency_symbol">Currency symbol</label>
+      <input type="text" id="currency_symbol" name="currency_symbol" value="{{ settings.currency_symbol or '₹' }}" style="width:80px;">
+    </div>
+  </div>
+  <div class="field grow">
+    <label for="business_address">Business address</label>
+    <input type="text" id="business_address" name="business_address" value="{{ settings.business_address or '' }}">
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:16px;">
+    <div class="field">
+      <label for="business_phone">Phone</label>
+      <input type="text" id="business_phone" name="business_phone" value="{{ settings.business_phone or '' }}">
+    </div>
+    <div class="field">
+      <label for="gst_number">GSTIN (optional)</label>
+      <input type="text" id="gst_number" name="gst_number" value="{{ settings.gst_number or '' }}">
+    </div>
+    <div class="field">
+      <label for="upi_id">UPI ID / number</label>
+      <input type="text" id="upi_id" name="upi_id" maxlength="80" autocomplete="off" placeholder="name@bank or 9876543210@ybl" value="{{ settings.upi_id or '' }}">
+    </div>
+    <div class="field">
+      <label for="upi_account_name">Account name (under QR)</label>
+      <input type="text" id="upi_account_name" name="upi_account_name" maxlength="60" value="{{ account_name }}">
+    </div>
+    <div class="field">
+      <label for="invoice_prefix">Invoice number prefix</label>
+      <input type="text" id="invoice_prefix" name="invoice_prefix" value="{{ settings.invoice_prefix or 'INV' }}" style="width:100px;">
+    </div>
+    <div class="field">
+      <label for="invoice_due_days">Invoice due in (days)</label>
+      <input type="number" id="invoice_due_days" name="invoice_due_days" value="{{ settings.invoice_due_days or 7 }}" style="width:100px;" min="0">
+    </div>
+    <div class="field">
+      <label for="auto_close_months">Auto-close finished months</label>
+      <select id="auto_close_months" name="auto_close_months">
+        <option value="1" {{ 'selected' if settings.auto_close_months != '0' }}>Yes — save &amp; lock automatically</option>
+        <option value="0" {{ 'selected' if settings.auto_close_months == '0' }}>No — I'll close them myself</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="month_close_grace_days">…after (days)</label>
+      <input type="number" id="month_close_grace_days" name="month_close_grace_days" value="{{ settings.month_close_grace_days or 5 }}" style="width:100px;" min="0">
+    </div>
+  </div>
+  <div class="page-sub mt-0">A closed month is saved as a permanent snapshot and locked, so later rate changes or edits can never alter it. The waiting period lets you finish logging the last days of a month first. See <a href="{{ url_for('history') }}">Month history</a>.</div>
+  <div>
+    <button class="btn" type="submit">Save settings</button>
+  </div>
+</form>
+
+<div class="section-head"><h2>Opening balances</h2></div>
+<div class="page-sub mt-0">If you were already using Cash/UPI/Bank before starting this app, enter what you had on hand when you started — the Accounts page will then show your real current balance, not just what's moved through the app.</div>
+<form class="entry-form" method="POST" action="{{ url_for('settings_page') }}">
+  <div class="field">
+    <label for="opening_balance_cash">Cash ({{ cur }})</label>
+    <input type="number" id="opening_balance_cash" name="opening_balance_cash" step="1" value="{{ settings.opening_balance_cash or 0 }}">
+  </div>
+  <div class="field">
+    <label for="opening_balance_upi">UPI ({{ cur }})</label>
+    <input type="number" id="opening_balance_upi" name="opening_balance_upi" step="1" value="{{ settings.opening_balance_upi or 0 }}">
+  </div>
+  <div class="field">
+    <label for="opening_balance_bank_transfer">Bank ({{ cur }})</label>
+    <input type="number" id="opening_balance_bank_transfer" name="opening_balance_bank_transfer" step="1" value="{{ settings.opening_balance_bank_transfer or 0 }}">
+  </div>
+  <div class="field">
+    <label for="opening_balance_other">Other ({{ cur }})</label>
+    <input type="number" id="opening_balance_other" name="opening_balance_other" step="1" value="{{ settings.opening_balance_other or 0 }}">
+  </div>
+  <input type="hidden" name="business_name" value="{{ settings.business_name or '' }}">
+  <input type="hidden" name="business_address" value="{{ settings.business_address or '' }}">
+  <input type="hidden" name="business_phone" value="{{ settings.business_phone or '' }}">
+  <input type="hidden" name="gst_number" value="{{ settings.gst_number or '' }}">
+  <input type="hidden" name="currency_symbol" value="{{ settings.currency_symbol or cur }}">
+  <input type="hidden" name="invoice_prefix" value="{{ settings.invoice_prefix or 'INV' }}">
+  <input type="hidden" name="invoice_due_days" value="{{ settings.invoice_due_days or 7 }}">
+  <div class="field">
+    <button class="btn" type="submit">Save opening balances</button>
+  </div>
+</form>
+<div class="page-sub mt-0"><a href="{{ url_for('accounts') }}">View your current Cash / UPI / Bank balances →</a></div>
+
+<div class="section-head"><h2>Backup &amp; restore</h2></div>
+<div class="page-sub mt-0">Your data lives in one file, <code>tiffin.db</code>. Download a backup regularly and keep it somewhere safe (Google Drive, a USB drive, email to yourself).</div>
+
+<div class="auto-backup-note">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+  <span>
+  {% if latest_auto_backup %}
+  Automatic daily backup is on — last saved <strong>{{ latest_auto_backup }}</strong>, {{ auto_backup_count }} of 14 rolling backups kept on this computer. These live in the app's <code>backups</code> folder, separate from any backup you download below.
+  {% else %}
+  Automatic daily backup is on — the first one will be saved next time you open the app.
+  {% endif %}
+  </span>
+</div>
+
+<div style="display:flex; gap:32px; flex-wrap:wrap;">
+  <div style="flex:1; min-width:260px;">
+    <h3 style="font-size:14px; margin-bottom:10px;">Download a backup</h3>
+    <a href="{{ url_for('backup_db') }}" class="btn secondary" style="text-decoration:none; display:inline-flex;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download backup (.db)
+    </a>
+  </div>
+
+  <div style="flex:1; min-width:260px;">
+    <h3 style="font-size:14px; margin-bottom:10px; color:var(--chili);">Restore from a backup</h3>
+    <form method="POST" action="{{ url_for('restore_db') }}" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:10px; align-items:flex-start;">
+      <input type="file" name="backup_file" accept=".db" required>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400;">
+        <input type="checkbox" name="confirm" value="1" style="width:auto;" required>
+        I understand this replaces all current data
+      </label>
+      <button class="btn danger" type="submit" onclick="return confirmAction('This will replace ALL current data with the uploaded backup. Continue?');">Restore backup</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var MAX=4*1024*1024, OK=['image/png','image/jpeg','image/webp','image/gif'];
+  document.querySelectorAll('.brand-form').forEach(function(f){
+    var k=f.dataset.kind, inp=f.querySelector('input[type=file]'), img=f.querySelector('.preview img'), empty=f.querySelector('.empty'),
+        meta=document.getElementById('meta-'+k), err=document.getElementById('err-'+k), save=f.querySelector('.save'),
+        cancel=f.querySelector('.cancel'), dz=f.querySelector('.dropzone'), orig={src:img.getAttribute('src'),meta:meta.textContent};
+    function fail(m){err.textContent=m;err.hidden=false;inp.value='';save.disabled=true}
+    function pick(file){
+      err.hidden=true; if(!file)return;
+      if(OK.indexOf(file.type)<0) return fail('Unsupported file type. Please choose a PNG, JPG or WEBP image.');
+      if(file.size>MAX) return fail('That file is larger than 4 MB. Please choose a smaller image.');
+      var u=URL.createObjectURL(file); img.src=u; img.hidden=false; empty.hidden=true; dz.classList.add('has-img');
+      meta.textContent=file.name+' · '+Math.round(file.size/1024)+' KB · not saved yet'; save.disabled=false; cancel.hidden=false;
+    }
+    inp.addEventListener('change',function(){pick(inp.files[0])});
+    f.querySelector('.pick').addEventListener('click',function(){inp.click()});
+    cancel.addEventListener('click',function(){inp.value='';err.hidden=true;save.disabled=true;cancel.hidden=true;meta.textContent=orig.meta;
+      if(orig.src){img.src=orig.src}else{img.hidden=true;img.removeAttribute('src');empty.hidden=false;dz.classList.remove('has-img')}});
+    ['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('drag')})});
+    ['dragleave','drop'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.remove('drag')})});
+    dz.addEventListener('drop',function(e){var fl=e.dataTransfer.files;if(fl&&fl[0]){var dt=new DataTransfer();dt.items.add(fl[0]);inp.files=dt.files;pick(fl[0])}});
+    f.addEventListener('submit',function(){save.disabled=true;save.textContent='Uploading…'});
+  });
+})();
+</script>
+{% endblock %}

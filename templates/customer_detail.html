@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% set active_tab = "customers" %}
+{% block title %}{{ c.name }} — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">{{ c.name }}</div>
+  <a href="{{ url_for('customers') }}" class="today-badge">← All customers</a>
+</div>
+
+<div class="detail-header">
+  <div>
+    <div class="meta">
+      {{ c.category }} · {{ plan_display }}<br>
+      {% if c.pg_name %}{{ c.pg_name }}<br>{% endif %}
+      {% if c.area %}{{ c.area }}<br>{% endif %}
+      {% if c.contact %}Contact: {{ c.contact }}<br>{% endif %}
+      Joined {{ c.join_date or '—' }} ·
+      <span class="pill {{ 'active' if c.status=='Active' else 'inactive' }}">{{ c.status }}</span>
+      {% if c.status == 'Paused' and c.pause_from %}
+        <span class="on-pause-tag">Paused {{ c.pause_from }}{% if c.pause_to %} to {{ c.pause_to }}{% endif %}</span>
+      {% endif %}
+    </div>
+    <div class="mini-stats" style="margin-top:16px;">
+      <div class="mini-stat"><div class="label">Total billed</div><div class="val">{{ cur }}{{ "{:,.0f}".format(fin.total_billed) }}</div></div>
+      <div class="mini-stat"><div class="label">Received</div><div class="val">{{ cur }}{{ "{:,.0f}".format(fin.total_paid_on_invoices + fin.unlinked_payments) }}</div></div>
+      <div class="mini-stat"><div class="label">Outstanding</div><div class="val {{ 'warn' if fin.outstanding > 0 }}">{{ cur }}{{ "{:,.0f}".format(fin.outstanding) }}</div></div>
+      {% if fin.credit_balance > 0 %}
+      <div class="mini-stat"><div class="label">Advance credit</div><div class="val">{{ cur }}{{ "{:,.0f}".format(fin.credit_balance) }}</div></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('edit_customer', cid=c.id) }}" class="btn secondary" style="text-decoration:none;">Edit customer</a>
+    <a href="{{ url_for('payments') }}?customer={{ c.id }}" class="btn" style="text-decoration:none;">+ Log payment</a>
+    {% if c.status == 'Active' %}
+    <details class="pause-box" id="pause">
+      <summary class="btn secondary">Pause deliveries</summary>
+      <form method="POST" action="{{ url_for('set_customer_status', cid=c.id) }}" class="pause-form">
+        <input type="hidden" name="status" value="Paused">
+        <div class="field"><label for="pause_from">Pause from</label><input type="date" id="pause_from" name="pause_from" required></div>
+        <div class="field"><label for="pause_to">Resume on (optional)</label><input type="date" id="pause_to" name="pause_to"></div>
+        <button class="btn" type="submit">Pause</button>
+      </form>
+    </details>
+    {% elif c.status == 'Paused' %}
+    <form method="POST" action="{{ url_for('set_customer_status', cid=c.id) }}" class="inline-form">
+      <input type="hidden" name="status" value="Active">
+      <button class="btn secondary" type="submit">Resume deliveries</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if rate_history|length > 0 %}
+<details class="rate-history">
+  <summary>Rate history ({{ rate_history|length }} version{{ 's' if rate_history|length != 1 }})</summary>
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Effective from</th><th>Plan</th><th class="num">Monthly rate</th><th class="center">Status</th></tr></thead>
+    <tbody>
+      {% for h in rate_history %}
+      <tr><td>{{ h.label }}</td><td>{{ h.plan_text }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(h.effective_rate) }}</td>
+          <td class="center"><span class="badge {{ 'paid' if h.status == 'Current' else ('partial' if h.status == 'Scheduled' else 'closed') }}">{{ h.status }}</span></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</details>
+{% endif %}
+
+<div class="detail-tabs">
+  <button class="active" onclick="showTab('invoices', this)">Invoices <span class="badge-count">{{ invoices|length }}</span></button>
+  <button onclick="showTab('payments', this)">Payments <span class="badge-count">{{ payments|length }}</span></button>
+  <button onclick="showTab('extras', this)">Extra orders <span class="badge-count">{{ extras|length }}</span></button>
+</div>
+
+<div id="tab-invoices" class="tab-panel active">
+  {% if invoices|length == 0 %}
+    <div class="empty-state">No invoices generated yet for this customer. Generate them from the Invoices page.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Invoice #</th><th>Period</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th><th class="center">Status</th><th></th></tr></thead>
+    <tbody>
+      {% for i in invoices %}
+      <tr>
+        <td><a href="{{ url_for('invoice_detail', iid=i.id) }}">{{ i.invoice_number }}</a></td>
+        <td>{{ i.period_start }} to {{ i.period_end }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(i.total_amount) }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(i.paid) }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(i.balance) }}</td>
+        <td class="center"><span class="badge {{ i.status|lower }}">{{ i.status }}</span></td>
+        <td class="center"><a class="btn-link" href="{{ url_for('invoice_pdf', iid=i.id) }}">PDF</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div id="tab-payments" class="tab-panel">
+  {% if payments|length == 0 %}
+    <div class="empty-state">No payments recorded yet.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Date</th><th class="num">Amount</th><th class="center">Mode</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td>{{ p.date }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(p.amount) }}</td>
+        <td class="center">{{ p.payment_mode }}</td>
+        <td>{{ p.notes or '' }}{% if p.invoice_id %} <span class="text-muted">(linked to invoice)</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div id="tab-extras" class="tab-panel">
+  {% if extras|length == 0 %}
+    <div class="empty-state">No extra orders for this customer yet.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th class="center">Status</th></tr></thead>
+    <tbody>
+      {% for e in extras %}
+      <tr>
+        <td>{{ e.date }}</td>
+        <td>{{ e.description or '' }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td>
+        <td class="center"><span class="badge {{ 'paid' if e.payment_status=='Paid' else 'unpaid' }}">{{ e.payment_status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>(function(){var b=document.getElementById("pause");if(!b)return;var f=document.getElementById("pause_from");var n=new Date();f.value=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");if(location.hash==="#pause"){b.open=true;b.scrollIntoView({block:"center"})}})();</script>
+<script>
+function showTab(name, btn){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.detail-tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

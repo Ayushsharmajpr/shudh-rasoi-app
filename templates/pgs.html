@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% set active_tab = "pgs" %}
+{% block title %}PGs — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">PG management</div>
+  <div class="today-badge">{{ pgs|length }} total</div>
+</div>
+<div class="page-sub">Add the PGs (paying-guest houses) you deliver to. Link customers to a PG from the Customers page.</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('pgs') }}">
+  <div class="field grow">
+    <label for="name">PG name</label>
+    <input type="text" id="name" name="name" placeholder="e.g. Om Boys PG" required>
+  </div>
+  <div class="field grow">
+    <label for="address">Address</label>
+    <input type="text" id="address" name="address" placeholder="e.g. Malviya Nagar, Jaipur">
+  </div>
+  <div class="field">
+    <label for="contact_person">Contact person</label>
+    <input type="text" id="contact_person" name="contact_person" placeholder="Owner / manager">
+  </div>
+  <div class="field">
+    <label for="contact_number">Contact number</label>
+    <input type="text" id="contact_number" name="contact_number">
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Add PG</button>
+  </div>
+</form>
+
+{% if pgs|length == 0 %}
+  <div class="empty-state">No PGs added yet.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>PG name</th><th>Address</th><th>Contact person</th><th>Contact number</th><th class="center">Customers</th><th></th></tr></thead>
+  <tbody>
+    {% for p in pgs %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>{{ p.address or '' }}</td>
+      <td>{{ p.contact_person or '' }}</td>
+      <td>{{ p.contact_number or '' }}</td>
+      <td class="center">{{ p.customer_count }}</td>
+      <td class="center">
+        <div class="row-actions">
+          <a class="btn-link toggle" href="{{ url_for('edit_pg', pid=p.id) }}">Edit</a>
+          <form method="POST" action="{{ url_for('delete_pg', pid=p.id) }}" onsubmit="return confirmAction('Remove this PG?');" class="inline-form">
+            <button class="btn-link" type="submit">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

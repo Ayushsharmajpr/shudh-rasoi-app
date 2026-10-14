@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set active_tab = "reports" %}
+{% block title %}Reports — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Reports — Profit &amp; Loss</div>
+</div>
+<div class="page-sub">Cash-basis P&amp;L for the selected month: what actually came in and went out.</div>
+
+<form class="filter-bar" method="GET" action="{{ url_for('reports') }}">
+  <div class="field">
+    <label for="month">Month</label>
+    <select id="month" name="month" onchange="this.form.submit()">
+      {% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym==ym }}>{{ m.label }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="report-grid">
+  <div class="report-card">
+    <div class="label">Billed this month</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(billed) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Revenue received</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(total_revenue) }}</div>
+    <div class="text-muted">Payments {{ cur }}{{ "{:,.0f}".format(received) }} + paid extras {{ cur }}{{ "{:,.0f}".format(extra_paid) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Total expenses</div>
+    <div class="val warn">{{ cur }}{{ "{:,.0f}".format(expense_total) }}</div>
+  </div>
+</div>
+<div class="report-grid" style="margin-top:14px;">
+  <div class="report-card">
+    <div class="label">Net profit (business)</div>
+    <div class="val {{ 'warn' if net_profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(net_profit) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Profit margin</div>
+    <div class="val">{{ "%.1f"|format(margin) }}%</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Personal expenses</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(personal_expense_total) }}</div>
+  </div>
+</div>
+
+<div class="report-grid" style="margin-top:14px;">
+  <div class="report-card">
+    <div class="label">Savings set aside</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(savings_deposits) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Remaining available funds</div>
+    <div class="val {{ 'warn' if remaining_funds < 0 }}">{{ cur }}{{ "{:,.0f}".format(remaining_funds) }}</div>
+  </div>
+</div>
+<div class="page-sub mt-0">Remaining available funds = Revenue − Business expenses − Personal expenses − Savings set aside, for {{ label }}.</div>
+
+<div class="section-head"><h2>Expenses by category — {{ label }}</h2></div>
+{% if by_category|length == 0 %}
+  <div class="empty-state">No expenses logged this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Category</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
+  <tbody>
+    {% for row in by_category %}
+    <tr>
+      <td>{{ row.category }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(row.total) }}</td>
+      <td class="num">{{ "%.1f"|format(row.total / expense_total * 100 if expense_total else 0) }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot><tr><td>Grand total</td><td class="num">{{ cur }}{{ "{:,.0f}".format(expense_total) }}</td><td></td></tr></tfoot>
+</table>
+</div>
+{% endif %}
+
+<div class="section-head"><h2>Cash / UPI / Bank position — {{ label }}</h2></div>
+<div class="page-sub mt-0">Money in vs money out by payment mode, for this month only.</div>
+{% if cash_breakdown|length == 0 %}
+  <div class="empty-state">No transactions logged this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Mode</th><th class="num">In (received)</th><th class="num">Out (spent)</th><th class="num">Net</th></tr></thead>
+  <tbody>
+    {% for row in cash_breakdown %}
+    <tr>
+      <td>{{ row.mode }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(row['in']) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(row.out) }}</td>
+      <td class="num {{ 'money pending' if row.net < 0 }}">{{ cur }}{{ "{:,.0f}".format(row.net) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

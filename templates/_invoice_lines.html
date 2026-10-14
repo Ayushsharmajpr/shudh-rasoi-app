@@ -1,0 +1,11 @@
+{% from "_macros.html" import ic, tip %}
+{# Shared "other lines" editor + live total. Expects: line_rows (list of dicts), cur #}
+<div class="panel"><h2>Other lines {{ tip('Add anything else you want to charge, such as a delivery fee or GST. A negative price is a discount.') }}
+  <button class="btn sm secondary" type="button" id="addLine">{{ ic('plus',14) }}Add line</button></h2>
+  <div class="editor-head line"><span>Description</span><span>Qty</span><span>Price</span><span style="text-align:right">Amount</span><span></span></div>
+  <div id="lineRows">
+    {% for l in line_rows %}{% include "_line_row.html" %}{% endfor %}
+  </div>
+  <div id="noLines" class="panel-b hint" {{ 'hidden' if line_rows }}>No extra lines. Use "Add line" for fees, taxes or discounts.</div>
+</div>
+<template id="lineTpl">{% set l = {'id':'','description':'','quantity':'1','unit_price':''} %}{% include "_line_row.html" %}</template>

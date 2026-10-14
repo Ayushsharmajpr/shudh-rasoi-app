@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% set active_tab = "daily" %}
+{% block title %}Daily tracking — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Tiffin tracking</div>
+</div>
+<div class="page-sub">Mark a meal as Skipped or on Leave — tap once for Skipped, again for Leave, again to reset to Delivered. Leave days automatically reduce that customer's next bill.</div>
+
+<div class="detail-tabs" id="trackerTabs">
+  <button class="active" onclick="showTrackerTab('day', this)">Daily tracker</button>
+  <button onclick="showTrackerTab('month', this)">Monthly tracker</button>
+</div>
+
+<div id="tab-day" class="tab-panel active">
+
+  <form class="filter-bar" method="GET" action="{{ url_for('daily') }}">
+    <input type="hidden" name="month" value="{{ sel_month }}">
+    <div class="field">
+      <label for="date">Date</label>
+      <div style="display:flex;gap:6px;">
+        <button type="button" class="btn secondary day-step" aria-label="Previous day" onclick="shiftDay(-1)">‹</button>
+        <input type="date" id="date" name="date" value="{{ sel_date }}" onchange="this.form.submit()">
+        <button type="button" class="btn secondary day-step" aria-label="Next day" onclick="shiftDay(1)">›</button>
+      </div>
+    </div>
+    <div class="field">
+      <button type="button" class="btn secondary" onclick="window.location.href='{{ url_for('daily') }}?date={{ today }}'">Today</button>
+    </div>
+  </form>
+
+  {% if month_locked %}
+  <div class="snapshot-banner closed">{{ sel_date_month_label }} is closed, so its tiffin records are locked.
+    <a href="{{ url_for('history_month', ym=sel_date_ym) }}">View the saved month →</a></div>
+  {% endif %}
+  {% if rows|length == 0 %}
+    <div class="empty-state">No active customers with a meal plan yet. Add customers on the Customers page.</div>
+  {% else %}
+  <div class="table-wrap daily-grid-wrap">
+  <table class="ledger">
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th class="center">Breakfast</th>
+        <th class="center">Lunch</th>
+        <th class="center">Dinner</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr {{ 'style="opacity:0.55;"' if r.not_joined_yet }}>
+        <td>
+          <a href="{{ url_for('customer_detail', cid=r.id) }}">{{ r.name }}</a>
+          {% if r.on_pause %}<span class="on-pause-tag">Paused</span>{% endif %}
+          {% if r.not_joined_yet %}<span class="on-pause-tag">Joins {{ r.join_date }}</span>{% endif %}
+        </td>
+        {% for meal in ['breakfast','lunch','dinner'] %}
+        <td class="center daily-meal-cell">
+          {% if r.not_joined_yet %}
+            <span class="text-muted">Not joined yet</span>
+          {% elif meal in r.meals %}
+            <button type="button"
+                    class="daily-meal-btn {{ r.meal_status[meal] }}"
+                    data-customer="{{ r.id }}" data-meal="{{ meal }}"
+                    {{ 'disabled' if (r.on_pause or month_locked) }}
+                    onclick="cycleMeal(this)">{{ r.meal_status[meal] }}</button>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<div id="tab-month" class="tab-panel">
+
+  <form class="filter-bar" method="GET" action="{{ url_for('daily') }}">
+    <input type="hidden" name="date" value="{{ sel_date }}">
+    <input type="hidden" name="tab" value="month">
+    <div class="field">
+      <label for="month">Month</label>
+      <select id="month" name="month" onchange="this.form.submit()">
+        {% for m in month_options %}
+          <option value="{{ m.ym }}" {{ 'selected' if m.ym == sel_month }}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if monthly_rows|length == 0 %}
+    <div class="empty-state">No active customers with a meal plan yet.</div>
+  {% else %}
+  <div class="page-sub mt-0">Totals for {{ sel_month_label }}, counted from actual daily records (each meal delivered = one tiffin).{% if sel_month == current_ym %} Since this month is still in progress, totals are counted only up to today.{% endif %} Click a row to see the day-by-day breakdown.</div>
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Meal plan</th>
+        <th class="num">Delivered (tiffins)</th>
+        <th class="num">Skipped</th>
+        <th class="num">Leave</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in monthly_rows %}
+      {% if r.not_joined_yet %}
+      <tr style="opacity:0.55;">
+        <td>{{ r.name }}</td>
+        <td>{{ r.meals | map('capitalize') | join(' + ') }}</td>
+        <td class="num" colspan="3" style="text-align:left; padding-left: 14px;">Joins {{ r.join_date }} — not applicable for {{ sel_month_label }}</td>
+      </tr>
+      {% else %}
+      <tr class="month-row" style="cursor:pointer;" onclick="toggleBreakdown({{ r.id }})">
+        <td>{{ r.name }}</td>
+        <td>{{ r.meals | map('capitalize') | join(' + ') }}</td>
+        <td class="num" style="font-weight:600;">{{ r.delivered }}</td>
+        <td class="num">{{ r.skipped }}</td>
+        <td class="num">{{ r.leave }}</td>
+      </tr>
+      <tr id="breakdown-{{ r.id }}" style="display:none;">
+        <td colspan="5" style="padding:0; background:var(--paper-2);">
+          {% if r.daily_breakdown|length == 0 %}
+            <div class="text-muted" style="padding:14px 18px;">Nothing to show yet for this month.</div>
+          {% else %}
+          <div class="table-wrap"><table class="ledger" style="margin:0;">
+            <thead>
+              <tr>
+                <th style="padding-left:28px;">Date</th>
+                {% if 'breakfast' in r.meals %}<th class="center">Breakfast</th>{% endif %}
+                {% if 'lunch' in r.meals %}<th class="center">Lunch</th>{% endif %}
+                {% if 'dinner' in r.meals %}<th class="center">Dinner</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for day in r.daily_breakdown %}
+              <tr>
+                <td style="padding-left:28px;">{{ day.date }}</td>
+                {% if 'breakfast' in r.meals %}<td class="center">{{ day.statuses.breakfast }}</td>{% endif %}
+                {% if 'lunch' in r.meals %}<td class="center">{{ day.statuses.lunch }}</td>{% endif %}
+                {% if 'dinner' in r.meals %}<td class="center">{{ day.statuses.dinner }}</td>{% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CYCLE = ['Delivered', 'Skipped', 'Leave'];
+const SEL_DATE = {{ sel_date | tojson }};
+
+function shiftDay(n){
+  const i=document.getElementById('date'); if(!i.value) return;
+  const d=new Date(i.value+'T00:00:00'); d.setDate(d.getDate()+n);
+  i.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  i.form.submit();
+}
+function cycleMeal(btn){
+  const current = CYCLE.indexOf(btn.textContent.trim());
+  const next = CYCLE[(current + 1) % CYCLE.length];
+  const customerId = btn.dataset.customer;
+  const meal = btn.dataset.meal;
+
+  fetch('{{ url_for("daily_toggle") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || '' },
+    body: JSON.stringify({ customer_id: customerId, date: SEL_DATE, meal: meal, status: next })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, body: data })))
+  .then(({ status, body }) => {
+    if (body.ok) {
+      btn.textContent = body.status;
+      btn.className = 'daily-meal-btn ' + body.status;
+    } else {
+      (window.toast||alert)(body.error || 'Could not update this record.', 'error');
+    }
+  })
+  .catch(() => (window.toast||alert)('Could not update — please check your connection and try again.', 'error'));
+}
+
+function showTrackerTab(name, btn){
+  document.querySelectorAll('#trackerTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#tab-day, #tab-month').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function toggleBreakdown(id){
+  const row = document.getElementById('breakdown-' + id);
+  row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+}
+
+// Restore the Monthly tab on load if the URL says so (after the month selector reloads the page)
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('tab') === 'month') {
+    const monthBtn = document.querySelectorAll('#trackerTabs button')[1];
+    showTrackerTab('month', monthBtn);
+  }
+})();
+</script>
+{% endblock %}

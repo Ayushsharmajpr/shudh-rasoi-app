@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set active_tab = "savings" %}
+{% block title %}Savings & FD — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Savings &amp; FD management</div>
+</div>
+<div class="page-sub">Money you've deliberately set aside from revenue for a Fixed Deposit. This is principal only — the app never calculates or assumes any interest.</div>
+
+<div class="report-grid" style="margin-bottom: 26px;">
+  <div class="report-card">
+    <div class="label">Total savings set aside</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(summary.total_deposits) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Currently in FD (principal)</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(summary.fd_balance) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Savings pool (not yet in FD)</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(summary.pool_balance) }}</div>
+  </div>
+</div>
+<div class="page-sub mt-0">FD interest is always ₹0 / not applicable in this app — it only tracks what you actually deposited.</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('savings') }}">
+  <div class="field">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" value="{{ today }}" required>
+  </div>
+  <div class="field">
+    <label for="entry_type">Type</label>
+    <select id="entry_type" name="entry_type" onchange="toggleModeField(this)">
+      <option value="Deposit">Deposit (set aside from revenue)</option>
+      <option value="FD Transfer">FD Transfer (move savings pool → FD)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="amount">Amount ({{ cur }})</label>
+    <input type="number" id="amount" name="amount" step="1" min="0" required>
+  </div>
+  <div class="field" id="modeField">
+    <label for="payment_mode">Payment mode</label>
+    <select id="payment_mode" name="payment_mode">
+      {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field grow">
+    <label for="description">Notes</label>
+    <input type="text" id="description" name="description" placeholder="e.g. Monthly savings from September revenue">
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Add entry</button>
+  </div>
+</form>
+<div class="page-sub mt-0">A Deposit takes money out of your available funds and adds it to the savings pool. An FD Transfer just moves money that's already in your savings pool into an FD — it doesn't take any additional money from revenue.</div>
+
+<div class="section-head"><h2>All entries</h2></div>
+{% if entries|length == 0 %}
+  <div class="empty-state">No savings entries yet.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th class="center">Type</th><th>Notes</th><th class="center">Mode</th><th class="num">Amount</th><th></th></tr></thead>
+  <tbody>
+    {% for s in entries %}
+    <tr>
+      <td>{{ s.date }}</td>
+      <td class="center"><span class="badge {{ 'paid' if s.entry_type=='Deposit' else 'partial' }}">{{ s.entry_type }}</span></td>
+      <td>{{ s.description or '' }}</td>
+      <td class="center">{{ s.payment_mode or '—' }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(s.amount) }}</td>
+      <td class="center">
+        <div class="row-actions">
+          <a class="btn-link toggle" href="{{ url_for('edit_savings', sid=s.id) }}">Edit</a>
+          <form method="POST" action="{{ url_for('delete_savings', sid=s.id) }}" onsubmit="return confirmAction('Remove this savings entry?');" class="inline-form">
+            <button class="btn-link" type="submit">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleModeField(sel){
+  document.getElementById('modeField').style.display = (sel.value === 'FD Transfer') ? 'none' : 'flex';
+}
+</script>
+{% endblock %}

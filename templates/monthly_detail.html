@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% set active_tab = "monthly" %}
+{% block title %}{{ label }} — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">{{ label }} — full breakdown</div>
+  <a href="{{ url_for('monthly') }}" class="today-badge">← All months</a>
+</div>
+{% if month_closed %}<div class="snapshot-banner closed">This month is closed — its figures are saved permanently. <a href="{{ url_for('history_month', ym=ym) }}">Open the full saved dashboard →</a></div>{% endif %}
+
+<div class="report-grid" style="margin-bottom: 26px;">
+  <div class="report-card">
+    <div class="label">Billed this month</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(total_billed) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Revenue received</div>
+    <div class="val">{{ cur }}{{ "{:,.0f}".format(total_revenue) }}</div>
+  </div>
+  <div class="report-card">
+    <div class="label">Expenses</div>
+    <div class="val warn">{{ cur }}{{ "{:,.0f}".format(total_expense) }}</div>
+  </div>
+</div>
+<div class="report-grid" style="margin-bottom: 8px;">
+  <div class="report-card">
+    <div class="label">Net profit</div>
+    <div class="val {{ 'warn' if net_profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(net_profit) }}</div>
+  </div>
+</div>
+
+<div class="section-head"><h2>Invoices generated ({{ invoice_rows|length }})</h2></div>
+{% if invoice_rows|length == 0 %}
+  <div class="empty-state">No invoices generated for this billing period.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Invoice #</th><th>Customer</th><th class="num">Total</th></tr></thead>
+  <tbody>
+    {% for i in invoice_rows %}
+    <tr><td><a href="{{ url_for('invoice_detail', iid=i.id) }}">{{ i.invoice_number }}</a></td><td>{{ i.customer_name }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(i.total_amount) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="section-head"><h2>Payments received ({{ revenue_rows|length }})</h2></div>
+{% if revenue_rows|length == 0 %}
+  <div class="empty-state">No payments received this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Customer</th><th class="num">Amount</th><th class="center">Mode</th></tr></thead>
+  <tbody>
+    {% for r in revenue_rows %}
+    <tr><td>{{ r.date }}</td><td>{{ r.customer_name }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(r.amount) }}</td><td class="center">{{ r.payment_mode }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="section-head"><h2>Extra orders (paid) ({{ extra_rows|length }})</h2></div>
+{% if extra_rows|length == 0 %}
+  <div class="empty-state">No paid extra orders this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Customer</th><th>Description</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    {% for e in extra_rows %}
+    <tr><td>{{ e.date }}</td><td>{{ e.customer_name or 'Walk-in' }}</td><td>{{ e.description or '' }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="section-head"><h2>Business expenses ({{ expense_rows|length }})</h2></div>
+{% if expense_rows|length == 0 %}
+  <div class="empty-state">No expenses logged this month.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Category</th><th>Description</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    {% for e in expense_rows %}
+    <tr><td>{{ e.date }}</td><td>{{ e.category }}</td><td>{{ e.description or '' }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if personal_rows|length > 0 %}
+<div class="section-head"><h2>Personal expenses ({{ personal_rows|length }})</h2><span class="hint">Not included in the business profit above</span></div>
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Category</th><th>Description</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    {% for e in personal_rows %}
+    <tr><td>{{ e.date }}</td><td>{{ e.category }}</td><td>{{ e.description or '' }}</td><td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

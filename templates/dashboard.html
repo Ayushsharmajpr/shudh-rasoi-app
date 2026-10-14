@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% set active_tab = "dashboard" %}
+{% block title %}Dashboard — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Business dashboard</div>
+  <div class="today-badge">{{ today_label }}</div>
+</div>
+<div class="page-sub">Everything below is calculated live from your customers, invoices, payments and expenses.</div>
+
+<div class="quick-actions" aria-label="Quick actions">
+  <a class="btn" href="{{ url_for('invoice_new') }}">New invoice</a>
+  <a class="btn" href="{{ url_for('payments') }}">Record payment</a>
+  <a class="btn" href="{{ url_for('daily') }}">Today's tiffins</a>
+  <a class="btn" href="{{ url_for('expenses') }}">Add expense</a>
+  <a class="btn" href="{{ url_for('extra_orders') }}">Extra order</a>
+</div>
+
+{% if alerts and alerts|length > 0 %}
+<div class="alert-stack">
+  {% for a in alerts %}
+  <div class="dash-alert {{ a.level }}">
+    <span>{{ a.message }}</span>
+    {% if a.link %}<a href="{{ a.link }}">{{ a.link_label }} →</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="hero-row">
+  <div class="hero-stat">
+    <div class="hero-label">Total revenue <span class="hero-sub">(lifetime)</span></div>
+    <div class="hero-value">{{ cur }}{{ "{:,.0f}".format(kpis.total_revenue) }}</div>
+  </div>
+  <div class="hero-op">−</div>
+  <div class="hero-stat">
+    <div class="hero-label">Total expense <span class="hero-sub">(lifetime)</span></div>
+    <div class="hero-value expense">{{ cur }}{{ "{:,.0f}".format(kpis.total_expense) }}</div>
+  </div>
+  <div class="hero-op">=</div>
+  <div class="hero-stat hero-featured">
+    <div class="hero-label">Net profit</div>
+    <div class="hero-value {{ 'warn' if kpis.net_profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(kpis.net_profit) }}</div>
+    <div class="hero-margin">{{ "%.1f"|format(kpis.margin) }}% margin</div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card accent-expense">
+    <div class="kpi-top">
+      <div class="label">Outstanding dues</div>
+      <div class="icon-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    </div>
+    <div class="value {{ 'warn' if kpis.pending_total > 0 }}">{{ cur }}{{ "{:,.0f}".format(kpis.pending_total) }}</div>
+    {% if kpis.pending_total > 0 %}<a href="{{ url_for('dues') }}" style="font-size:11.5px;">View dues →</a>{% endif %}
+  </div>
+  <div class="kpi-card accent-margin">
+    <div class="kpi-top">
+      <div class="label">Extra income</div>
+      <div class="icon-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
+    </div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.extra_income_total) }}</div>
+    <a href="{{ url_for('extra_orders') }}" style="font-size:11.5px;">View extra orders →</a>
+  </div>
+  <div class="kpi-card accent-expense">
+    <div class="kpi-top">
+      <div class="label">Personal expenses</div>
+      <div class="icon-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+    </div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.total_personal_expense) }}</div>
+    <a href="{{ url_for('expenses') }}" style="font-size:11.5px;">View personal expenses →</a>
+  </div>
+  <div class="kpi-card accent-neutral">
+    <div class="kpi-top">
+      <div class="label">Savings / FD balance</div>
+      <div class="icon-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+    </div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.savings_total_deposits) }}</div>
+    <a href="{{ url_for('savings') }}" style="font-size:11.5px;">FD: {{ cur }}{{ "{:,.0f}".format(kpis.savings_fd_balance) }} · View →</a>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="label">Remaining available funds</div>
+      <div class="icon-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+    </div>
+    <div class="value {{ 'warn' if kpis.remaining_funds < 0 }}">{{ cur }}{{ "{:,.0f}".format(kpis.remaining_funds) }}</div>
+  </div>
+</div>
+<div class="page-sub mt-0">Remaining available funds = Revenue − Business expenses − Personal expenses − Savings set aside.</div>
+
+<div class="section-head"><h2>This month</h2></div>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-top"><div class="label">Billed</div></div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.month_billed) }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top"><div class="label">Received</div></div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.month_revenue) }}</div>
+    {% if trend.revenue %}<span class="trend-badge {{ 'good' if trend.revenue.up else 'bad' }}">{{ '▲' if trend.revenue.up else '▼' }} {{ cur }}{{ "{:,.0f}".format(trend.revenue.delta) }} vs last month</span>{% endif %}
+  </div>
+  <div class="kpi-card accent-margin">
+    <div class="kpi-top"><div class="label">Extra income</div></div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.extra_income_month) }}</div>
+  </div>
+  <div class="kpi-card accent-expense">
+    <div class="kpi-top"><div class="label">Expense</div></div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.month_expense) }}</div>
+    {% if trend.expense %}<span class="trend-badge {{ 'bad' if trend.expense.up else 'good' }}">{{ '▲' if trend.expense.up else '▼' }} {{ cur }}{{ "{:,.0f}".format(trend.expense.delta) }} vs last month</span>{% endif %}
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top"><div class="label">Profit</div></div>
+    <div class="value {{ 'warn' if kpis.month_profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(kpis.month_profit) }}</div>
+    {% if trend.profit %}<span class="trend-badge {{ 'good' if trend.profit.up else 'bad' }}">{{ '▲' if trend.profit.up else '▼' }} {{ cur }}{{ "{:,.0f}".format(trend.profit.delta) }} vs last month</span>{% endif %}
+  </div>
+  <div class="kpi-card accent-expense">
+    <div class="kpi-top"><div class="label">Personal expenses</div></div>
+    <div class="value">{{ cur }}{{ "{:,.0f}".format(kpis.month_personal_expense) }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top"><div class="label">Remaining funds</div></div>
+    <div class="value {{ 'warn' if kpis.month_remaining_funds < 0 }}">{{ cur }}{{ "{:,.0f}".format(kpis.month_remaining_funds) }}</div>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>Expense breakdown</h2>
+  <form class="month-select-form" method="GET" action="{{ url_for('dashboard') }}">
+    <label for="month">Month</label>
+    <select id="month" name="month" onchange="this.form.submit()">
+      {% for m in month_options %}
+        <option value="{{ m.ym }}" {{ 'selected' if m.ym == selected_month }}>{{ m.label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if by_category|length == 0 %}
+  <div class="empty-state">No expenses logged for this month yet.</div>
+{% else %}
+<div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Category</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
+    <tbody>
+      {% for row in by_category %}
+      <tr>
+        <td>{{ row.category }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(row.total) }}</td>
+        <td class="num">{{ "%.1f"|format(row.total / cat_total * 100 if cat_total else 0) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td>Grand total</td><td class="num">{{ cur }}{{ "{:,.0f}".format(cat_total) }}</td><td></td></tr>
+    </tfoot>
+  </table>
+</div>
+{% endif %}
+
+<div class="section-head">
+  <h2>Monthly summary</h2>
+  <a href="{{ url_for('history') }}" class="hint">Browse every month's saved dashboard →</a>
+</div>
+<div class="page-sub mt-0">A quick look at recent months. See <a href="{{ url_for('monthly') }}">Monthly summary</a> for the complete list with drill-downs.</div>
+{% if monthly|length == 0 %}
+  <div class="empty-state">No entries yet — log a payment or an expense and monthly totals will appear here.</div>
+{% else %}
+<div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Expense</th><th class="num">Net profit</th><th class="num">Margin</th></tr></thead>
+    <tbody>
+      {% for m in monthly[-6:] | reverse %}
+      <tr style="cursor:pointer;" onclick="window.location='{{ url_for('monthly_detail', ym=m.ym) }}'">
+        <td>{{ m.label }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(m.revenue) }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(m.expense) }}</td>
+        <td class="num {{ 'money pending' if m.profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(m.profit) }}</td>
+        <td class="num">{{ "%.1f"|format(m.margin) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

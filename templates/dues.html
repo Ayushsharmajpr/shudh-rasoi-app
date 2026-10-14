@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active_tab = "dues" %}
+{% block title %}Dues — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Dues &amp; outstanding</div>
+  <div class="today-badge">Total outstanding: {{ cur }}{{ "{:,.0f}".format(total_outstanding) }}</div>
+</div>
+<div class="page-sub">Every customer with a billed amount, sorted by how much they still owe.</div>
+
+{% if rows|length == 0 %}
+  <div class="empty-state">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <div>No dues right now — everything billed has been paid off, or no invoices have been generated yet.</div>
+  </div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Customer</th><th class="center">Category</th><th class="center">Status</th><th class="num">Total billed</th><th class="num">Outstanding</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><a href="{{ url_for('customer_detail', cid=r.id) }}">{{ r.name }}</a></td>
+      <td class="center">{{ r.category }}</td>
+      <td class="center"><span class="pill {{ 'active' if r.status=='Active' else 'inactive' }}">{{ r.status }}</span></td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(r.total_billed) }}</td>
+      <td class="num">
+        <span class="money {{ 'pending' if r.outstanding > 0 else 'settled' }}">{{ cur }}{{ "{:,.0f}".format(r.outstanding) }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="4">Total outstanding</td><td class="num money pending">{{ cur }}{{ "{:,.0f}".format(total_outstanding) }}</td></tr>
+  </tfoot>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

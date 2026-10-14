@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% set active_tab = "customers" %}
+{% block title %}Edit {{ c.name }} — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Edit customer</div>
+  <a href="{{ url_for('customer_detail', cid=c.id) }}" class="today-badge">← Back to {{ c.name }}</a>
+</div>
+<div class="page-sub">Update plan, rate or details for {{ c.name }}.</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('edit_customer', cid=c.id) }}" style="flex-direction: column; align-items: stretch;">
+  <div style="display:flex; flex-wrap:wrap; gap:16px;">
+    <div class="field grow">
+      <label for="name">Customer name</label>
+      <input type="text" id="name" name="name" value="{{ c.name }}" required>
+    </div>
+    <div class="field">
+      <label for="category">Category</label>
+      <select id="category" name="category">
+        {% for cat in categories %}<option value="{{ cat }}" {{ 'selected' if c.category==cat }}>{{ cat }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="pg_id">PG</label>
+      <select id="pg_id" name="pg_id">
+        <option value="">— None / Individual —</option>
+        {% for p in pgs %}<option value="{{ p.id }}" {{ 'selected' if c.pg_id==p.id }}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:16px;">
+    <div class="field grow">
+      <label for="area">Area / address</label>
+      <input type="text" id="area" name="area" value="{{ c.area or '' }}">
+    </div>
+    <div class="field">
+      <label for="contact">Contact number</label>
+      <input type="text" id="contact" name="contact" value="{{ c.contact or '' }}">
+    </div>
+    <div class="field">
+      <label for="join_date">Join date</label>
+      <input type="date" id="join_date" name="join_date" value="{{ c.join_date or '' }}">
+    </div>
+  </div>
+
+  <div class="section-head"><h2 style="font-size:14px;">Meal plan</h2></div>
+  <div style="display:flex; gap:20px; font-size:14px;">
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" name="meal_breakfast" style="width:auto;" {{ 'checked' if c.meal_breakfast }}> Breakfast</label>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" name="meal_lunch" style="width:auto;" {{ 'checked' if c.meal_lunch }}> Lunch</label>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" name="meal_dinner" style="width:auto;" {{ 'checked' if c.meal_dinner }}> Dinner</label>
+  </div>
+
+  <div class="section-head"><h2 style="font-size:14px;">Pricing</h2></div>
+  <div class="page-sub mt-0">Either set one flat monthly rate, or fill per-meal rates below — if any per-meal rate is set, it overrides the flat rate.</div>
+  <div style="display:flex; flex-wrap:wrap; gap:16px;">
+    <div class="field">
+      <label for="monthly_rate">Flat monthly rate ({{ cur }})</label>
+      <input type="number" id="monthly_rate" name="monthly_rate" step="1" min="0" value="{{ c.monthly_rate }}">
+    </div>
+    <div class="field">
+      <label for="rate_breakfast">Breakfast rate ({{ cur }}/mo)</label>
+      <input type="number" id="rate_breakfast" name="rate_breakfast" step="1" min="0" value="{{ c.rate_breakfast or 0 }}">
+    </div>
+    <div class="field">
+      <label for="rate_lunch">Lunch rate ({{ cur }}/mo)</label>
+      <input type="number" id="rate_lunch" name="rate_lunch" step="1" min="0" value="{{ c.rate_lunch or 0 }}">
+    </div>
+    <div class="field">
+      <label for="rate_dinner">Dinner rate ({{ cur }}/mo)</label>
+      <input type="number" id="rate_dinner" name="rate_dinner" step="1" min="0" value="{{ c.rate_dinner or 0 }}">
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
+    <div class="field">
+      <label for="effective_month">If the plan or rate changed, apply it from</label>
+      <select id="effective_month" name="effective_month">
+        {% for ym, lbl in effective_options %}<option value="{{ ym }}" {{ 'selected' if ym == default_effective }}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field grow">
+      <label for="rate_note">Reason (optional)</label>
+      <input type="text" id="rate_note" name="rate_note" placeholder="e.g. price revision">
+    </div>
+  </div>
+  <div class="page-sub mt-0">A new rate or meal plan applies from the chosen month onward. Earlier months keep the rate they had, and any invoice already issued is never recalculated.
+    {% if rate_floor_label %}Changes can start from {{ rate_floor_label }} (earlier months are already invoiced or closed).{% endif %}</div>
+
+  <div class="field grow">
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes" rows="2">{{ c.notes or '' }}</textarea>
+  </div>
+
+  <div>
+    <button class="btn" type="submit">Save changes</button>
+    <a href="{{ url_for('customer_detail', cid=c.id) }}" class="btn secondary" style="text-decoration:none;">Cancel</a>
+  </div>
+</form>
+
+<div class="section-head"><h2>Rate history</h2></div>
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Effective from</th><th>Plan</th><th class="num">Monthly rate</th><th>Note</th><th class="center">Status</th><th></th></tr></thead>
+  <tbody>
+    {% for h in rate_history %}
+    <tr>
+      <td>{{ h.label }}</td>
+      <td>{{ h.plan_text }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(h.effective_rate) }}</td>
+      <td>{{ h.note or '' }}</td>
+      <td class="center"><span class="badge {{ 'paid' if h.status == 'Current' else ('partial' if h.status == 'Scheduled' else 'closed') }}">{{ h.status }}</span></td>
+      <td class="center">
+        {% if h.removable %}
+        <form method="POST" action="{{ url_for('delete_scheduled_rate', cid=c.id, rid=h.id) }}" onsubmit="return confirmAction('Remove this scheduled change?');" class="inline-form">
+          <button class="btn-link" type="submit">Remove</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

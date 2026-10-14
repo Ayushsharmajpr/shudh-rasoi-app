@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, tip, empty %}
+{% set active_tab = "billing" %}
+{% block title %}{{ inv.invoice_number }} — {{ biz.business_name }}{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="{{ url_for('billing') }}">Invoices</a> / {{ inv.invoice_number }}</div>
+<div class="inv-head">
+  <div>
+    {% if brand.logo %}<img class="inv-logo" src="{{ brand.logo.url }}" alt="{{ biz.business_name }}">{% endif %}
+    <h1>{{ inv.invoice_number }} <span class="badge {{ status|lower }}">{{ status }}</span>{% if overdue %}<span class="badge overdue">Overdue</span>{% endif %}{% if month_locked %}<span class="chip-lock">{{ ic('lock',12) }}{{ month_name }} closed</span>{% endif %}{% if summary and summary.adjusted %}<span class="badge adjusted">Adjusted</span>{% endif %}</h1>
+  </div>
+  <div class="page-actions no-print">
+    <a class="btn secondary" href="{{ url_for('invoice_pdf', iid=inv.id) }}">{{ ic('dl',16) }}Download PDF</a>
+    <a class="btn secondary" href="{{ url_for('invoice_pdf', iid=inv.id, inline=1) }}" target="_blank" rel="noopener">{{ ic('printer',16) }}Print</a>
+    <a class="btn" href="{{ url_for('invoice_edit', iid=inv.id) }}">{{ ic('edit',16) }}Edit invoice</a>
+  </div>
+</div>
+
+{% if month_locked %}<div class="notice info no-print">{{ ic('lock',18) }}<div>{{ month_name }} is closed, so this invoice is locked. To change or delete it, unlock the month first (the old month snapshot is kept on file).</div>
+  <button class="btn sm secondary" type="button" data-open-dialog="unlockDlg">{{ ic('unlock',14) }}Unlock {{ month_name }}</button></div>{% endif %}
+{% if drifted and not month_locked %}<div class="notice warn no-print">{{ ic('alert',18) }}<div>Tiffin records for this month changed after the invoice was generated. The invoice keeps its issued figures — edit the subscription amount, or delete and regenerate it, if it should reflect the changes.</div></div>{% endif %}
+
+<div class="inv-meta">
+  <div><div class="k">Bill to</div><div class="v"><a href="{{ url_for('customer_detail', cid=inv.customer_id) }}">{{ bill_to.name }}</a>{% if bill_to.pg_name %}<br>{{ bill_to.pg_name }}{% endif %}{% if bill_to.area %}<br>{{ bill_to.area }}{% endif %}{% if bill_to.contact %}<br>{{ bill_to.contact }}{% endif %}</div></div>
+  <div><div class="k">Period</div><div class="v">{{ inv.period_start }} to {{ inv.period_end }}</div><div class="k" style="margin-top:10px">Plan</div><div class="v">{{ plan_display }}</div></div>
+  <div><div class="k">Invoice date</div><div class="v">{{ inv.generated_date }}</div><div class="k" style="margin-top:10px">Due date</div><div class="v">{{ inv.due_date or '—' }}</div></div>
+  {% if inv.notes %}<div><div class="k">Notes</div><div class="v" style="white-space:pre-wrap">{{ inv.notes }}</div></div>{% endif %}
+</div>
+
+<div class="inv-grid">
+<div>
+  <div class="panel"><h2>Items</h2>
+    <div class="table-wrap" style="border:0;border-radius:0;box-shadow:none"><table class="items">
+      <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <tr><td class="desc">Tiffin subscription — {{ plan_display }}<small>{{ inv.period_start }} to {{ inv.period_end }}{% if summary and summary.adjusted %} · calculated {{ cur }}{{ "{:,.2f}".format(summary.calculated_amount) }}, adjusted{% endif %}</small></td><td class="num">1</td><td class="num">{{ cur }}{{ "{:,.2f}".format(inv.subscription_amount) }}</td><td class="num">{{ cur }}{{ "{:,.2f}".format(inv.subscription_amount) }}</td></tr>
+        {% for e in extras %}<tr><td class="desc">{{ e.description or 'Extra order' }}<small>Extra order · {{ e.date }}</small></td><td class="num">1</td><td class="num">{{ cur }}{{ "{:,.2f}".format(e.amount) }}</td><td class="num">{{ cur }}{{ "{:,.2f}".format(e.amount) }}</td></tr>{% endfor %}
+        {% for l in lines %}<tr><td class="desc">{{ l.description }}</td><td class="num">{{ '%g' % l.quantity }}</td><td class="num">{{ '−' if l.unit_price < 0 }}{{ cur }}{{ "{:,.2f}".format(l.unit_price|abs) }}</td><td class="num">{{ '−' if l.amount < 0 }}{{ cur }}{{ "{:,.2f}".format(l.amount|abs) }}</td></tr>{% endfor %}
+      </tbody></table></div>
+    <div class="totals">
+      <div class="row grand"><span>Total</span><span>{{ cur }}{{ "{:,.2f}".format(inv.total_amount) }}</span></div>
+      <div class="row"><span>Paid</span><span>{{ cur }}{{ "{:,.2f}".format(paid) }}</span></div>
+      <div class="row due {{ 'owing' if balance > 0 }}"><span>{{ 'Balance due' if balance >= 0 else 'Credit' }}</span><span>{{ cur }}{{ "{:,.2f}".format(balance|abs) }}</span></div>
+    </div>
+  </div>
+
+  {% if summary %}
+  <div class="panel"><h2>How the subscription was calculated {{ tip('Skipped tiffins are recorded but do not reduce the bill. Leave days and paused days are credited.') }}</h2>
+    <div class="stat-strip" style="padding:14px 18px 0;margin:0">
+      <div class="stat"><div class="k">Total meals in plan</div><div class="v">{{ summary.scheduled }}</div></div>
+      <div class="stat"><div class="k">Tiffins taken</div><div class="v">{{ summary.delivered }}</div></div>
+      <div class="stat"><div class="k">Tiffins skipped</div><div class="v">{{ summary.skipped }}</div></div>
+      <div class="stat"><div class="k">Meals on leave (credited)</div><div class="v">{{ summary.leave_meals }}</div></div>
+    </div>
+    <div class="table-wrap" style="border:0;border-radius:0;box-shadow:none"><table class="ledger calc-table"><tbody>
+      <tr><th>Service days</th><td>{{ summary.active_days }} of {{ summary.days_in_period }}{% if summary.active_days < summary.days_in_period %} (started {{ summary.active_start_label }}){% endif %}</td></tr>
+      <tr><th>Billable days</th><td>{{ summary.billable_days }} of {{ summary.days_in_period }} ({{ summary.leave_days }} leave days credited)</td></tr>
+      <tr><th>Rate</th><td>{{ cur }}{{ "{:,.2f}".format(summary.rate_monthly) }} per month{% if summary.rate_effective_label %} · Rate in effect from {{ summary.rate_effective_label }}{% endif %}</td></tr>
+      <tr><th>Calculation</th><td>{{ cur }}{{ "{:,.2f}".format(summary.daily_rate) }} × {{ summary.billable_days }} days = <strong>{{ cur }}{{ "{:,.2f}".format(summary.calculated_amount) }}</strong></td></tr>
+      {% if summary.adjusted %}<tr><th>Adjustment</th><td>Subscription amount adjusted from {{ cur }}{{ "{:,.2f}".format(summary.calculated_amount) }} to <strong>{{ cur }}{{ "{:,.2f}".format(summary.final_subscription) }}</strong></td></tr>{% endif %}
+      {% if summary.exceptions %}<tr><th>Records</th><td>{% for e in summary.exceptions %}<span class="rec-chip {{ e.status|lower }}">{{ e.date[8:10] }}/{{ e.date[5:7] }} {{ e.meal|capitalize }} · {{ e.status }}</span> {% endfor %}</td></tr>{% endif %}
+    </tbody></table></div>
+    {% if summary.projected_from %}<div class="panel-b hint">Issued on {{ summary.generated_label }}, before the month ended; days from {{ summary.projected_label }} were counted as delivered.</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="panel"><h2>Payments received</h2>
+    {% if payments|length == 0 %}<div class="panel-b hint">No payments recorded against this invoice yet.</div>
+    {% else %}<div class="table-wrap" style="border:0;border-radius:0;box-shadow:none"><table class="ledger"><thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Notes</th></tr></thead><tbody>
+      {% for p in payments %}<tr><td>{{ p.date }}</td><td class="num">{{ cur }}{{ "{:,.2f}".format(p.amount) }}</td><td>{{ p.payment_mode }}</td><td>{{ p.notes or '' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+  </div>
+</div>
+
+<aside class="sticky-side no-print">
+  {% if balance > 0 %}
+  <div class="panel"><h2>Record payment</h2>
+    <form method="POST" action="{{ url_for('pay_invoice', iid=inv.id) }}" class="panel-b" style="display:grid;gap:12px">
+      <div class="field"><label for="amount">Amount ({{ cur }})</label><input type="number" id="amount" name="amount" step="0.01" min="0.01" max="{{ balance }}" value="{{ balance }}" required></div>
+      <div class="field"><label for="date">Date</label><input type="date" id="date" name="date" value="{{ pay_date }}" required></div>
+      <div class="field"><label for="payment_mode">Paid by</label><select id="payment_mode" name="payment_mode"><option>UPI</option><option>Cash</option><option>Bank Transfer</option><option>Other</option></select></div>
+      <div class="field"><label for="notes">Note</label><input type="text" id="notes" name="notes" placeholder="optional"></div>
+      <button class="btn" type="submit">Save payment</button>
+    </form></div>
+  {% else %}<div class="notice ok">{{ ic('check',18) }}<div>Paid in full. Thank you!</div></div>{% endif %}
+
+  <div class="panel pay-card" style="display:block;margin-bottom:16px">
+    {% if pay_qr_url %}<div class="pay-qr-col" style="max-width:none"><img class="pay-qr" src="{{ pay_qr_url }}" alt="Payment QR code"><div class="acct-line">Account Name: {{ account_name }}</div></div>
+      <div class="hint" style="margin-top:8px">{{ 'Amount due ' ~ cur ~ ('{:,.2f}'.format(balance)) if balance > 0 else 'This QR is printed on the invoice PDF.' }}</div>
+    {% else %}<div class="hint">No payment QR yet. <a href="{{ url_for('settings_page') }}#brand">Set up payments</a> to print one on every invoice.</div>{% endif %}
+  </div>
+
+  <div class="panel"><h2>Manage</h2><div class="action-list">
+    <a class="btn secondary" href="{{ url_for('invoice_edit', iid=inv.id) }}">{{ ic('edit',16) }}Edit invoice</a>
+    {% if month_locked %}<button class="btn secondary" type="button" data-open-dialog="unlockDlg">{{ ic('unlock',16) }}Unlock {{ month_name }} to change</button>
+    {% else %}<button class="btn danger outline" type="button" data-open-dialog="deleteDlg">{{ ic('trash',16) }}Delete invoice</button>{% endif %}
+  </div></div>
+</aside>
+</div>
+
+{% if not month_locked %}
+<dialog id="deleteDlg" class="dlg" data-light-dismiss>
+  <form method="POST" action="{{ url_for('delete_invoice', iid=inv.id) }}">
+    <div class="dlg-body"><h2>Delete {{ inv.invoice_number }}?</h2>
+      <p>This removes the invoice for <strong>{{ bill_to.name }}</strong> ({{ month_name }}, {{ cur }}{{ "{:,.2f}".format(inv.total_amount) }}). Its number is never reused. You can create the invoice again afterwards.</p>
+      {% if payments %}
+      <p><strong>{{ payments|length }} payment{{ 's' if payments|length != 1 }} ({{ cur }}{{ "{:,.0f}".format(paid) }}) recorded.</strong> What should happen to the money?</p>
+      <label class="choice"><input type="radio" name="payments" value="keep" checked><div><strong>Keep the payments as advance credit</strong><span>Recommended. The money stays on the customer's account and reduces what they owe next.</span></div></label>
+      <label class="choice"><input type="radio" name="payments" value="delete"><div><strong>Delete the payments too</strong><span>Use this only if the payments were recorded by mistake.</span></div></label>
+      {% endif %}
+    </div>
+    <div class="dlg-foot"><button class="btn secondary" type="button" data-close-dialog>Cancel</button><button class="btn danger" type="submit">Delete invoice</button></div>
+  </form>
+</dialog>
+{% endif %}
+
+{% if month_locked %}
+<dialog id="unlockDlg" class="dlg" data-light-dismiss>
+  <form method="POST" action="{{ url_for('invoice_unlock', iid=inv.id) }}">
+    <div class="dlg-body"><h2>Unlock {{ month_name }}?</h2>
+      <p>This lets you correct invoices, payments, expenses and tiffin records dated in {{ month_name }}. The saved snapshot of the month is kept on file as an earlier version. When you finish, close the month again from Month history.</p></div>
+    <div class="dlg-foot"><button class="btn secondary" type="button" data-close-dialog>Cancel</button><button class="btn" type="submit">Unlock month</button></div>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}

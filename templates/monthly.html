@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set active_tab = "monthly" %}
+{% block title %}Monthly summary — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Monthly summary</div>
+</div>
+<div class="page-sub">Fully automatic — built from your Payments and Expense logs. Click any month to see the full breakdown.</div>
+
+{% if summary|length %}<div class="filter-bar"><div class="field"><label for="jump">Jump to month</label>
+<select id="jump" data-month-picker onchange="if(this.value)window.location='{{ url_for('monthly_detail', ym='XX') }}'.replace('XX',this.value)">
+{% for m in summary %}<option value="{{ m.ym }}">{{ m.label }}</option>{% endfor %}</select></div></div>{% endif %}
+{% if summary|length == 0 %}
+  <div class="empty-state">No entries yet — once you log some payments or expenses, monthly totals will appear here.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead>
+    <tr><th>Month</th><th class="num">Revenue</th><th class="num">Expense</th><th class="num">Net profit</th><th class="num">Margin</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for m in summary %}
+    <tr style="cursor:pointer;" onclick="window.location='{{ url_for('monthly_detail', ym=m.ym) }}'">
+      <td>{{ m.label }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(m.revenue) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(m.expense) }}</td>
+      <td class="num {{ 'money pending' if m.profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(m.profit) }}</td>
+      <td class="num">{{ "%.1f"|format(m.margin) }}%</td>
+      <td class="center"><a href="{{ url_for('monthly_detail', ym=m.ym) }}" class="btn-link toggle">Details →</a>
+        · <a href="{{ url_for('history_month', ym=m.ym) }}" class="btn-link toggle" onclick="event.stopPropagation();">Full dashboard →</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

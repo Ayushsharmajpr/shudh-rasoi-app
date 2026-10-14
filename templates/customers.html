@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% set active_tab = "customers" %}
+{% block title %}Customers — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Customer master</div>
+  <div class="today-badge">{{ customers|length }} total</div>
+</div>
+<div class="page-sub">Add every PG and individual client here. They'll then show up in Payments, Extra Orders and Daily Tracking.</div>
+
+<details style="margin-bottom:22px;">
+<summary class="btn" style="display:inline-flex; width:fit-content; list-style:none; cursor:pointer;">+ Add customer</summary>
+<form class="entry-form" method="POST" action="{{ url_for('customers') }}" style="margin-top:12px;">
+  <div class="field grow">
+    <label for="name">Customer name</label>
+    <input type="text" id="name" name="name" placeholder="e.g. Rahul Sharma" required>
+  </div>
+  <div class="field">
+    <label for="category">Category</label>
+    <select id="category" name="category">
+      {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="pg_id">PG (if applicable)</label>
+    <select id="pg_id" name="pg_id">
+      <option value="">— None / Individual —</option>
+      {% for p in pgs %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field grow">
+    <label for="area">Area / address</label>
+    <input type="text" id="area" name="area" placeholder="e.g. Malviya Nagar">
+  </div>
+  <div class="field">
+    <label for="contact">Contact number</label>
+    <input type="text" id="contact" name="contact" placeholder="98290xxxxx">
+  </div>
+
+  <div class="field">
+    <label>Meal plan</label>
+    <div style="display:flex; gap:12px; padding-top:6px; font-size:13.5px;">
+      <label style="display:flex; align-items:center; gap:5px; font-weight:400;"><input type="checkbox" name="meal_breakfast" style="width:auto;"> Breakfast</label>
+      <label style="display:flex; align-items:center; gap:5px; font-weight:400;"><input type="checkbox" name="meal_lunch" style="width:auto;" checked> Lunch</label>
+      <label style="display:flex; align-items:center; gap:5px; font-weight:400;"><input type="checkbox" name="meal_dinner" style="width:auto;"> Dinner</label>
+    </div>
+  </div>
+  <div class="field">
+    <label for="monthly_rate">Monthly rate ({{ cur }})</label>
+    <input type="number" id="monthly_rate" name="monthly_rate" step="1" min="0" placeholder="0">
+  </div>
+  <div class="field">
+    <label for="join_date">Join date</label>
+    <input type="date" id="join_date" name="join_date" value="{{ today_label and '' }}">
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Add customer</button>
+  </div>
+  <div class="page-sub mt-0" style="flex-basis:100%; margin:0;">
+    Tip: leave the monthly rate as one flat number, or open "Edit" after adding to set separate per-meal rates instead.
+  </div>
+</form>
+</details>
+
+<form class="filter-bar" method="GET" action="{{ url_for('customers') }}">
+  <div class="field search">
+    <label for="q">Search</label>
+    <input type="text" id="q" name="q" value="{{ q }}" placeholder="Name, contact or area…">
+  </div>
+  <div class="field">
+    <label for="category_f">Category</label>
+    <select id="category_f" name="category">
+      <option value="">All</option>
+      {% for cat in categories %}<option value="{{ cat }}" {{ 'selected' if category_filter==cat }}>{{ cat }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="status_f">Status</label>
+    <select id="status_f" name="status">
+      <option value="">All</option>
+      {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if status_filter==st }}>{{ st }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="sort_f">Sort by</label>
+    <select id="sort_f" name="sort">
+      <option value="name" {{ 'selected' if sort=='name' }}>Name</option>
+      <option value="rate" {{ 'selected' if sort=='rate' }}>Monthly rate</option>
+      <option value="join" {{ 'selected' if sort=='join' }}>Join date</option>
+    </select>
+  </div>
+  <div class="field">
+    <button class="btn secondary" type="submit">Apply</button>
+  </div>
+</form>
+
+{% if customers|length == 0 %}
+  <div class="empty-state">No customers match your filters.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th class="center">Category</th>
+      <th>PG / area</th>
+      <th>Plan</th>
+      <th class="num">Monthly rate</th>
+      <th class="num">Received (month)</th>
+      <th class="num">Outstanding</th>
+      <th class="center">Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in customers %}
+    <tr>
+      <td><a href="{{ url_for('customer_detail', cid=c.id) }}">{{ c.name }}</a></td>
+      <td class="center">{{ c.category }}</td>
+      <td>{{ c.pg_name or c.area or "" }}</td>
+      <td>{{ c.plan_display }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(c.monthly_rate) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(c.received_this_month) }}</td>
+      <td class="num">
+        <span class="money {{ 'pending' if c.pending > 0 else 'settled' }}">{{ cur }}{{ "{:,.0f}".format(c.pending) }}</span>
+      </td>
+      <td class="center">
+        <form method="POST" action="{{ url_for('set_customer_status', cid=c.id) }}" class="status-form">
+          <select name="status" aria-label="Status for {{ c.name }}" onchange="if(this.value==='Paused'){this.value='{{ c.status }}';location.href='{{ url_for('customer_detail', cid=c.id) }}#pause';return}this.form.submit()">
+            {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if c.status==st }}>{{ st }}</option>{% endfor %}
+          </select>
+        </form>
+      </td>
+      <td class="center">
+        <div class="row-actions">
+          <a class="btn-link toggle" href="{{ url_for('edit_customer', cid=c.id) }}" aria-label="Edit {{ c.name }}">Edit</a>
+          <form method="POST" action="{{ url_for('delete_customer', cid=c.id) }}" onsubmit="return confirmAction('Remove this customer?');" class="inline-form">
+            <button class="btn-link" type="submit" aria-label="Remove {{ c.name }}">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="6">Total outstanding across shown customers</td>
+      <td class="num money {{ 'pending' if pending_total > 0 else 'settled' }}">{{ cur }}{{ "{:,.0f}".format(pending_total) }}</td>
+      <td colspan="2"></td>
+    </tr>
+  </tfoot>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

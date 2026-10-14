@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% set active_tab = "expenses" %}
+{% block title %}Expenses — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Expenses</div>
+</div>
+<div class="page-sub">Business (operational) expenses feed your P&amp;L and dashboard business totals. Personal expenses are tracked completely separately and never count as a business cost.</div>
+
+<div class="detail-tabs" id="expenseTabs">
+  <button class="active" onclick="showExpenseTab('business', this)">Business expenses</button>
+  <button onclick="showExpenseTab('personal', this)">Personal expenses</button>
+</div>
+
+<div id="tab-business" class="tab-panel active">
+
+  <form class="entry-form" method="POST" action="{{ url_for('expenses') }}">
+    <input type="hidden" name="expense_type" value="Business">
+    <div class="field">
+      <label for="date">Date</label>
+      <input type="date" id="date" name="date" value="{{ today }}" required>
+    </div>
+    <div class="field grow">
+      <label for="category">Category</label>
+      <select id="category" name="category" required>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field grow">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" placeholder="e.g. Vegetables & atta - weekly">
+    </div>
+    <div class="field">
+      <label for="amount">Amount ({{ cur }})</label>
+      <input type="number" id="amount" name="amount" step="1" min="0" required>
+    </div>
+    <div class="field">
+      <label for="payment_mode">Payment mode</label>
+      <select id="payment_mode" name="payment_mode">
+        {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <button class="btn" type="submit">Log business expense</button>
+    </div>
+  </form>
+
+  <div class="section-head">
+    <h2>Recurring expenses</h2>
+    <span class="hint">Auto-added each month on the day you set</span>
+  </div>
+  <div class="recurring-list">
+    {% for r in recurring %}
+    <div class="recurring-row {{ '' if r.active else 'inactive' }}">
+      <div class="rec-info">
+        <div class="rec-title">{{ r.category }}{% if r.description %} — {{ r.description }}{% endif %}</div>
+        <div class="rec-sub">{{ cur }}{{ "{:,.0f}".format(r.amount) }} on day {{ r.day_of_month }} of each month · {{ r.payment_mode }}</div>
+      </div>
+      <div class="rec-actions">
+        <form method="POST" action="{{ url_for('toggle_recurring_expense', rid=r.id) }}" class="inline-form">
+          <button class="btn-link toggle" type="submit">{{ 'Pause' if r.active else 'Resume' }}</button>
+        </form>
+        <form method="POST" action="{{ url_for('delete_recurring_expense', rid=r.id) }}" onsubmit="return confirmAction('Remove this recurring expense?');" class="inline-form">
+          <button class="btn-link" type="submit">Remove</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state">No recurring expenses set up — e.g. monthly rent or a fixed staff salary.</div>
+    {% endfor %}
+  </div>
+
+  <details style="margin-bottom:26px;">
+  <summary class="btn secondary" style="display:inline-flex; width:fit-content; list-style:none; cursor:pointer; text-decoration:none;">+ Add recurring expense</summary>
+  <form class="entry-form" method="POST" action="{{ url_for('add_recurring_expense') }}" style="margin-top:12px;">
+    <div class="field grow">
+      <label for="rcategory">Category</label>
+      <select id="rcategory" name="category" required>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field grow">
+      <label for="rdescription">Description</label>
+      <input type="text" id="rdescription" name="description" placeholder="e.g. Shop rent">
+    </div>
+    <div class="field">
+      <label for="ramount">Amount ({{ cur }})</label>
+      <input type="number" id="ramount" name="amount" step="1" min="0" required>
+    </div>
+    <div class="field">
+      <label for="day_of_month">Day of month</label>
+      <input type="number" id="day_of_month" name="day_of_month" min="1" max="28" value="1" required>
+    </div>
+    <div class="field">
+      <label for="rpayment_mode">Payment mode</label>
+      <select id="rpayment_mode" name="payment_mode">
+        {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <button class="btn" type="submit">Add recurring expense</button>
+    </div>
+  </form>
+  </details>
+
+  <form class="filter-bar" method="GET" action="{{ url_for('expenses') }}">
+    <div class="field">
+      <label for="month">Month</label>
+      <select id="month" name="month" onchange="this.form.submit()">
+        <option value="">All time</option>
+        {% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym==month_filter }}>{{ m.label }}</option>{% endfor %}
+      </select>
+    </div>
+  </form>
+
+  <div class="section-head">
+    <h2>All business expenses</h2>
+    <span class="hint">{{ business_entries|length }} entries</span>
+  </div>
+
+  {% if business_entries|length == 0 %}
+    <div class="empty-state">No business expenses logged for this filter.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Date</th><th>Category</th><th>Description</th><th class="num">Amount</th><th class="center">Mode</th><th></th></tr></thead>
+    <tbody>
+      {% for e in business_entries %}
+      <tr>
+        <td>{{ e.date }}</td>
+        <td>{{ e.category }}</td>
+        <td>{{ e.description or "" }}{% if e.recurring_expense_id %} <span class="text-muted">(auto)</span>{% endif %}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td>
+        <td class="center">{{ e.payment_mode }}</td>
+        <td class="center">
+          <div class="row-actions">
+            <a class="btn-link toggle" href="{{ url_for('edit_expense', eid=e.id) }}">Edit</a>
+            <form method="POST" action="{{ url_for('delete_expense', eid=e.id) }}" onsubmit="return confirmAction('Remove this entry?');" class="inline-form">
+              <button class="btn-link" type="submit">Remove</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="3">Total business expenses</td><td class="num">{{ cur }}{{ "{:,.0f}".format(business_total) }}</td><td colspan="2"></td></tr>
+    </tfoot>
+  </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<div id="tab-personal" class="tab-panel">
+
+  <div class="page-sub mt-0">Personal expenses (household, medical, family, etc.) are kept completely separate from your business books — they never appear in Business Expense totals, P&amp;L, or the expense-by-category report.</div>
+
+  <form class="entry-form" method="POST" action="{{ url_for('expenses') }}">
+    <input type="hidden" name="expense_type" value="Personal">
+    <div class="field">
+      <label for="pdate">Date</label>
+      <input type="date" id="pdate" name="date" value="{{ today }}" required>
+    </div>
+    <div class="field grow">
+      <label for="pcategory">Category</label>
+      <select id="pcategory" name="category" required>
+        {% for c in personal_categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field grow">
+      <label for="pdescription">Description</label>
+      <input type="text" id="pdescription" name="description" placeholder="e.g. Doctor visit">
+    </div>
+    <div class="field">
+      <label for="pamount">Amount ({{ cur }})</label>
+      <input type="number" id="pamount" name="amount" step="1" min="0" required>
+    </div>
+    <div class="field">
+      <label for="ppayment_mode">Payment mode</label>
+      <select id="ppayment_mode" name="payment_mode">
+        {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <button class="btn" type="submit">Log personal expense</button>
+    </div>
+  </form>
+
+  <div class="section-head">
+    <h2>All personal expenses</h2>
+    <span class="hint">{{ personal_entries|length }} entries</span>
+  </div>
+
+  {% if personal_entries|length == 0 %}
+    <div class="empty-state">No personal expenses logged for this filter.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table class="ledger">
+    <thead><tr><th>Date</th><th>Category</th><th>Description</th><th class="num">Amount</th><th class="center">Mode</th><th></th></tr></thead>
+    <tbody>
+      {% for e in personal_entries %}
+      <tr>
+        <td>{{ e.date }}</td>
+        <td>{{ e.category }}</td>
+        <td>{{ e.description or "" }}</td>
+        <td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td>
+        <td class="center">{{ e.payment_mode }}</td>
+        <td class="center">
+          <div class="row-actions">
+            <a class="btn-link toggle" href="{{ url_for('edit_expense', eid=e.id) }}">Edit</a>
+            <form method="POST" action="{{ url_for('delete_expense', eid=e.id) }}" onsubmit="return confirmAction('Remove this entry?');" class="inline-form">
+              <button class="btn-link" type="submit">Remove</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="3">Total personal expenses</td><td class="num">{{ cur }}{{ "{:,.0f}".format(personal_total) }}</td><td colspan="2"></td></tr>
+    </tfoot>
+  </table>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showExpenseTab(name, btn){
+  document.querySelectorAll('#expenseTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#tab-business, #tab-personal').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+</script>
+{% endblock %}

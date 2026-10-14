@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, tip, empty %}
+{% set active_tab = "billing" %}
+{% block title %}Invoices — {{ biz.business_name }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Invoices</div>
+  <div class="page-actions">
+    <button class="btn secondary" type="button" data-open-dialog="genDlg">{{ ic('cal',16) }}Generate month</button>
+    <a class="btn" href="{{ url_for('invoice_new') }}">{{ ic('plus',16) }}New invoice</a>
+  </div>
+</div>
+<div class="page-sub">Search, edit, print and collect payment for every invoice.</div>
+
+<div class="stat-strip">
+  <div class="stat"><div class="k">Invoices shown</div><div class="v">{{ totals.count }}</div></div>
+  <div class="stat"><div class="k">Billed</div><div class="v">{{ cur }}{{ "{:,.0f}".format(totals.billed) }}</div></div>
+  <div class="stat"><div class="k">Collected</div><div class="v good">{{ cur }}{{ "{:,.0f}".format(totals.collected) }}</div></div>
+  <div class="stat"><div class="k">Outstanding</div><div class="v {{ 'bad' if totals.outstanding > 0 }}">{{ cur }}{{ "{:,.0f}".format(totals.outstanding) }}</div></div>
+</div>
+
+<form class="toolbar" method="GET" action="{{ url_for('billing') }}" data-no-lock="1">
+  <div class="field search"><label for="q">Search</label><input id="q" type="search" name="q" value="{{ q }}" placeholder="Invoice number or customer name"></div>
+  <div class="field"><label for="mfilter">Month</label>
+    <select id="mfilter" name="month" onchange="this.form.submit()"><option value="">All time</option>
+      {% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym==month_filter }}>{{ m.label }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="sort">Sort by</label>
+    <select id="sort" name="sort" onchange="this.form.submit()">{% for k, l in sorts %}<option value="{{ k }}" {{ 'selected' if k==sort }}>{{ l }}</option>{% endfor %}</select></div>
+  <input type="hidden" name="status" value="{{ status_filter }}">
+  <button class="btn secondary" type="submit">Search</button>
+  {% if q or month_filter or status_filter %}<a class="btn secondary" href="{{ url_for('billing') }}">Clear</a>{% endif %}
+</form>
+<div class="seg" role="tablist" aria-label="Filter by status" style="margin-bottom:14px">
+  {% for s, l in [('', 'All'), ('Unpaid','Unpaid'), ('Partial','Partial'), ('Overdue','Overdue'), ('Paid','Paid')] %}
+  <a class="{{ 'on' if status_filter==s }}" href="{{ url_for('billing', q=q or None, month=month_filter or None, sort=sort, status=s or None) }}">{{ l }}{% if s=='Overdue' and totals.overdue %} ({{ totals.overdue }}){% endif %}</a>{% endfor %}
+</div>
+
+{% if invoices|length == 0 %}
+  {% if has_any %}{% call empty('search', 'No invoices match', 'Try a different search, month or status.') %}<a class="btn secondary" href="{{ url_for('billing') }}">Clear filters</a>{% endcall %}
+  {% else %}{% call empty('file', 'No invoices yet', 'Generate this month\'s invoices for all customers in one click, or create a single invoice.') %}<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" type="button" data-open-dialog="genDlg">Generate month</button><a class="btn secondary" href="{{ url_for('invoice_new') }}">New invoice</a></div>{% endcall %}{% endif %}
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Invoice</th><th>Customer</th><th>Period</th><th>Due</th><th class="num">Total</th><th class="num">Balance</th><th class="center">Status</th><th></th></tr></thead>
+  <tbody>
+  {% for i in invoices %}
+  <tr class="{{ 'is-overdue' if i.overdue }}">
+    <td><a class="inv-link" href="{{ url_for('invoice_detail', iid=i.id) }}">{{ i.invoice_number }}</a>{% if i.locked %} <span class="chip-lock" title="This month is closed">{{ ic('lock',12) }}</span>{% endif %}</td>
+    <td><a href="{{ url_for('customer_detail', cid=i.customer_id) }}">{{ i.customer_name }}</a></td>
+    <td>{{ i.period_start[:7] }}</td>
+    <td>{{ i.due_date or '—' }}</td>
+    <td class="num">{{ cur }}{{ "{:,.0f}".format(i.total_amount) }}</td>
+    <td class="num">{{ cur }}{{ "{:,.0f}".format(i.balance) }}</td>
+    <td class="center"><span class="badge {{ i.status|lower }}">{{ i.status }}</span>{% if i.overdue %} <span class="badge overdue">Overdue</span>{% endif %}</td>
+    <td class="num"><span class="row-menu">
+      {% if i.balance > 0 %}<button type="button" class="btn sm secondary pay-btn" data-id="{{ i.id }}" data-num="{{ i.invoice_number }}" data-cust="{{ i.customer_name }}" data-bal="{{ i.balance|round(2) }}">Record payment</button>{% endif %}
+      <a class="icon-link" href="{{ url_for('invoice_edit', iid=i.id) }}" title="Edit invoice" aria-label="Edit {{ i.invoice_number }}">{{ ic('edit',16) }}</a>
+      <a class="icon-link" href="{{ url_for('invoice_pdf', iid=i.id) }}" title="Download PDF" aria-label="Download PDF for {{ i.invoice_number }}">{{ ic('dl',16) }}</a>
+    </span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pages > 1 %}<div class="pager">{% if page > 1 %}<a class="btn sm secondary" href="{{ url_for('billing', q=q or None, month=month_filter or None, sort=sort, status=status_filter or None, page=page-1) }}">← Previous</a>{% endif %}<span>Page {{ page }} of {{ pages }}</span>{% if page < pages %}<a class="btn sm secondary" href="{{ url_for('billing', q=q or None, month=month_filter or None, sort=sort, status=status_filter or None, page=page+1) }}">Next →</a>{% endif %}</div>{% endif %}
+{% endif %}
+
+<dialog id="genDlg" class="dlg" data-light-dismiss>
+  <form method="POST" action="{{ url_for('billing') }}">
+    <div class="dlg-body"><h2>Generate invoices for a month</h2>
+      <p>Bills every active or paused customer for the month — subscription (minus leave days) plus unbilled extra orders. Customers who already have an invoice for that month are skipped.</p>
+      <div class="field"><label for="gmonth">Month</label><select id="gmonth" name="month">{% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym==current_ym }}>{{ m.label }}</option>{% endfor %}</select></div></div>
+    <div class="dlg-foot"><button class="btn secondary" type="button" data-close-dialog>Cancel</button><button class="btn" type="submit">Generate invoices</button></div>
+  </form>
+</dialog>
+
+<dialog id="payDlg" class="dlg" data-light-dismiss>
+  <form method="POST" id="payForm" action="">
+    <input type="hidden" name="back" value="{{ request.full_path.rstrip('?') }}">
+    <div class="dlg-body"><h2>Record payment</h2><p id="payWho"></p>
+      <div class="field"><label for="pamt">Amount ({{ cur }})</label><input id="pamt" name="amount" type="number" step="0.01" min="0.01" required></div>
+      <div class="field"><label for="pdate">Date</label><input id="pdate" name="date" type="date" value="{{ pay_date }}" required></div>
+      <div class="field"><label for="pmode">Paid by</label><select id="pmode" name="payment_mode"><option>UPI</option><option>Cash</option><option>Bank Transfer</option><option>Other</option></select></div>
+    </div>
+    <div class="dlg-foot"><button class="btn secondary" type="button" data-close-dialog>Cancel</button><button class="btn" type="submit">Save payment</button></div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}<script>
+document.querySelectorAll('.pay-btn').forEach(function(b){b.addEventListener('click',function(){
+  var f=document.getElementById('payForm');f.action='/invoices/'+b.dataset.id+'/pay';
+  document.getElementById('payWho').textContent=b.dataset.num+' · '+b.dataset.cust+' · balance {{ cur }}'+Number(b.dataset.bal).toLocaleString('en-IN');
+  var a=document.getElementById('pamt');a.value=b.dataset.bal;a.max=b.dataset.bal;document.getElementById('payDlg').showModal();a.select()})});
+</script>{% endblock %}

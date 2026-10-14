@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set active_tab = "history" %}
+{% block title %}Month history — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Month history</div>
+</div>
+<div class="page-sub">Every month's complete dashboard, saved permanently once the month is closed. Closed months never change — not when rates are revised, not when you edit later entries.</div>
+
+{% if months|length %}<div class="filter-bar"><div class="field"><label for="jump">Jump to month</label>
+<select id="jump" data-month-picker onchange="if(this.value)window.location='{{ url_for('history_month', ym='XX') }}'.replace('XX',this.value)">
+{% for m in months %}<option value="{{ m.ym }}">{{ m.label }}</option>{% endfor %}</select></div></div>{% endif %}
+
+<div class="table-wrap">
+<table class="ledger">
+  <thead>
+    <tr><th>Month</th><th class="center">Status</th><th class="num">Billed</th><th class="num">Revenue</th><th class="num">Expense</th><th class="num">Net profit</th><th class="num">Margin</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for m in months %}
+    <tr style="cursor:pointer;" onclick="window.location='{{ url_for('history_month', ym=m.ym) }}'">
+      <td>{{ m.label }}</td>
+      <td class="center">
+        {% if m.state == 'closed' %}<span class="badge closed">Closed</span>
+        {% elif m.state == 'current' %}<span class="badge open">In progress</span>
+        {% elif m.state == 'reopened' %}<span class="badge partial">Reopened</span>
+        {% else %}<span class="badge open">Open</span>{% endif %}
+      </td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(m.billed) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(m.revenue) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(m.expense) }}</td>
+      <td class="num {{ 'money pending' if m.profit < 0 }}">{{ cur }}{{ "{:,.0f}".format(m.profit) }}</td>
+      <td class="num">{{ "%.1f"|format(m.margin) }}%</td>
+      <td class="center"><a href="{{ url_for('history_month', ym=m.ym) }}" class="btn-link toggle">View →</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="page-sub">Finished months close automatically a few days after month end (change this in <a href="{{ url_for('settings_page') }}">Settings</a>). Open and in-progress months are shown live.</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, tip, empty %}
+{% set active_tab = "billing" %}
+{% block title %}Edit {{ inv.invoice_number }} — {{ biz.business_name }}{% endblock %}
+{% block content %}
+{% set P = posted %}
+{% set line_rows = [] %}
+{% if P is not none %}
+  {% set ids = P.getlist('line_id') %}{% set ds = P.getlist('line_desc') %}{% set qs = P.getlist('line_qty') %}{% set ps = P.getlist('line_price') %}
+  {% for n in range(ds|length) %}{% if line_rows.append({'id': ids[n] if n < ids|length else '', 'description': ds[n], 'quantity': qs[n] if n < qs|length else '1', 'unit_price': ps[n] if n < ps|length else ''}) %}{% endif %}{% endfor %}
+{% else %}
+  {% for l in lines %}{% if line_rows.append({'id': l.id, 'description': l.description, 'quantity': '%g' % l.quantity, 'unit_price': l.unit_price}) %}{% endif %}{% endfor %}
+{% endif %}
+<div class="crumbs"><a href="{{ url_for('billing') }}">Invoices</a> / <a href="{{ url_for('invoice_detail', iid=inv.id) }}">{{ inv.invoice_number }}</a> / Edit</div>
+<div class="topbar"><div class="page-title">Edit {{ inv.invoice_number }}</div></div>
+<div class="page-sub">Change anything below. The total updates as you type; nothing is saved until you press <strong>Save changes</strong>.</div>
+
+{% if errors %}<div class="errors" role="alert"><strong>Please fix the following:</strong><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if month_locked %}
+<div class="notice info">{{ ic('lock',18) }}<div><strong>{{ month_name }} is closed</strong>, so this invoice can't be changed right now. Unlock the month to edit it (the old month snapshot is kept on file).</div>
+  <form method="POST" action="{{ url_for('invoice_unlock', iid=inv.id) }}"><input type="hidden" name="next" value="edit"><button class="btn sm" type="submit">{{ ic('unlock',14) }}Unlock {{ month_name }}</button></form></div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('invoice_edit', iid=inv.id) }}" id="editForm">
+<fieldset {{ 'disabled' if month_locked }} style="border:0;padding:0;margin:0;min-width:0">
+
+<div class="panel"><h2>Dates &amp; notes</h2><div class="form-grid">
+  <div class="field"><label for="generated_date" class="req">Invoice date</label><input id="generated_date" name="generated_date" type="date" required value="{{ P.get('generated_date') if P is not none else inv.generated_date }}"></div>
+  <div class="field"><label for="due_date">Due date {{ tip('Invoices are overdue after this date if a balance remains. Leave empty for no due date.') }}</label><input id="due_date" name="due_date" type="date" value="{{ P.get('due_date') if P is not none else (inv.due_date or '') }}"></div>
+  <div class="field span2"><label for="notes">Notes (printed on the invoice)</label><textarea id="notes" name="notes" rows="2" maxlength="1000">{{ P.get('notes') if P is not none else (inv.notes or '') }}</textarea></div>
+</div></div>
+
+<div class="panel"><h2>Customer details on this invoice {{ tip('These are printed under "Bill to". Changing them here does not touch the customer record unless you tick the box below.') }}</h2><div class="form-grid">
+  <div class="field"><label for="bill_to_name" class="req">Name</label><input id="bill_to_name" name="bill_to_name" required maxlength="120" value="{{ P.get('bill_to_name') if P is not none else bill_to.name }}"></div>
+  <div class="field"><label for="bill_to_contact">Contact number</label><input id="bill_to_contact" name="bill_to_contact" maxlength="60" inputmode="tel" value="{{ P.get('bill_to_contact') if P is not none else bill_to.contact }}"></div>
+  <div class="field span2"><label for="bill_to_area">Address / area</label><input id="bill_to_area" name="bill_to_area" maxlength="200" value="{{ P.get('bill_to_area') if P is not none else bill_to.area }}"></div>
+  <label class="span2" style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" name="update_customer" value="1" {{ 'checked' if P is not none and P.get('update_customer') }}> Also update the customer record with these details</label>
+</div></div>
+
+<div class="panel"><h2>Subscription</h2><div class="form-grid">
+  <div class="field"><label for="subscription_amount" class="req">Subscription amount ({{ cur }}) {{ tip('The monthly tiffin charge. Type any amount to override the automatic calculation.') }}</label>
+    <input id="subscription_amount" name="subscription_amount" type="number" step="0.01" min="0" required inputmode="decimal" value="{{ P.get('subscription_amount') if P is not none else inv.subscription_amount }}"></div>
+  <div class="field"><label>&nbsp;</label>{% if calculated is not none %}<div class="preview-box">Automatic amount: <strong>{{ cur }}{{ "{:,.2f}".format(calculated) }}</strong>
+    <button type="button" class="linklike" id="useCalc" data-v="{{ calculated }}">Use calculated amount</button></div>{% endif %}</div>
+</div></div>
+
+<div class="panel"><h2>Extra orders on this invoice {{ tip('Removing an extra order takes it off this invoice. It returns to Extra orders as unbilled.') }}</h2>
+  {% if extras or unbilled %}
+  {% if extras %}<div class="editor-head extra"><span>Date</span><span>Description</span><span>Amount</span><span></span></div>
+  {% for e in extras %}{% set n = loop.index0 %}
+  <div class="editor-row extra" data-extra>
+    <input type="hidden" name="extra_id" value="{{ e.id }}">
+    <div class="field"><label class="sr">Date</label><input type="date" name="extra_date" required value="{{ P.getlist('extra_date')[n] if P is not none and n < P.getlist('extra_date')|length else e.date }}"></div>
+    <div class="field desc-col"><label class="sr">Description</label><input type="text" name="extra_desc" maxlength="200" value="{{ P.getlist('extra_desc')[n] if P is not none and n < P.getlist('extra_desc')|length else (e.description or '') }}"></div>
+    <div class="field"><label class="sr">Amount</label><input type="number" name="extra_amount" step="0.01" min="0.01" required value="{{ P.getlist('extra_amount')[n] if P is not none and n < P.getlist('extra_amount')|length else e.amount }}"></div>
+    <label class="icon-link danger" title="Remove from invoice" style="cursor:pointer"><input type="checkbox" name="extra_remove" value="{{ e.id }}" style="position:absolute;opacity:0" data-remove-extra>{{ ic('trash',16) }}</label>
+  </div>{% endfor %}{% endif %}
+  {% if unbilled %}<div class="panel-b" style="border-top:1px solid var(--line)"><div class="hint" style="margin-bottom:6px">Unbilled extra orders for this customer — tick to add:</div>
+    {% for u in unbilled %}<label style="display:flex;gap:8px;align-items:center;font-weight:500;padding:4px 0"><input type="checkbox" name="attach_extra" value="{{ u.id }}" data-amt="{{ u.amount }}"> {{ u.date }} · {{ u.description or 'Extra order' }} · {{ cur }}{{ "{:,.2f}".format(u.amount) }}</label>{% endfor %}</div>{% endif %}
+  {% else %}<div class="panel-b hint">No extra orders on this invoice, and none waiting to be billed.</div>{% endif %}
+</div>
+
+{% include "_invoice_lines.html" %}
+
+<div class="live-total no-print">
+  <div><div class="big" id="liveTotal">—</div><div class="sub" id="liveSub">New total</div></div>
+  <div style="display:flex;gap:10px"><a class="btn secondary" href="{{ url_for('invoice_detail', iid=inv.id) }}">Cancel</a><button class="btn" type="submit">Save changes</button></div>
+</div>
+</fieldset>
+</form>
+{% endblock %}
+{% block scripts %}<script>
+var CUR='{{ cur }}', PAID={{ paid }}, OLD={{ inv.total_amount }};
+(function(){
+ var form=document.getElementById('editForm');
+ function num(v){v=parseFloat(v);return isFinite(v)?v:0}
+ function recalc(){
+  var t=num(form.subscription_amount.value);
+  form.querySelectorAll('[data-extra]').forEach(function(r){var rm=r.querySelector('[data-remove-extra]').checked;r.classList.toggle('removed',rm);if(!rm)t+=num(r.querySelector('[name=extra_amount]').value)});
+  form.querySelectorAll('[name=attach_extra]:checked').forEach(function(c){t+=num(c.dataset.amt)});
+  form.querySelectorAll('[data-line]').forEach(function(r){var a=num(r.querySelector('[name=line_qty]').value||1)*num(r.querySelector('[name=line_price]').value);a=Math.round(a*100)/100;r.querySelector('[data-amount]').textContent=r.querySelector('[name=line_price]').value===''?'—':fmtMoney(a,CUR);t+=a});
+  t=Math.round(t*100)/100; document.getElementById('liveTotal').textContent=fmtMoney(t,CUR);
+  var d=Math.round((t-OLD)*100)/100, s='Was '+fmtMoney(OLD,CUR)+(d?' · '+(d>0?'+':'')+fmtMoney(d,CUR):' · no change');
+  if(PAID>0) s+=' · paid '+fmtMoney(PAID,CUR)+' · balance '+fmtMoney(Math.round((t-PAID)*100)/100,CUR);
+  document.getElementById('liveSub').textContent=s;
+ }
+ form.addEventListener('input',recalc); form.addEventListener('change',recalc);
+ var lr=document.getElementById('lineRows'),none=document.getElementById('noLines');
+ document.getElementById('addLine').addEventListener('click',function(){var t=document.getElementById('lineTpl').content.cloneNode(true);lr.appendChild(t);none.hidden=true;lr.lastElementChild.querySelector('[name=line_desc]').focus();recalc()});
+ lr.addEventListener('click',function(e){var b=e.target.closest('[data-remove-line]');if(b){b.closest('[data-line]').remove();none.hidden=!!lr.children.length;recalc()}});
+ var uc=document.getElementById('useCalc'); if(uc)uc.addEventListener('click',function(){form.subscription_amount.value=uc.dataset.v;recalc()});
+
+ recalc();
+})();
+</script>{% endblock %}

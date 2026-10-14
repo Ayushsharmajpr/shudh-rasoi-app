@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% set active_tab = "extra_orders" %}
+{% block title %}Extra orders — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Quick extra orders</div>
+</div>
+<div class="page-sub">One-off orders outside a subscription — a guest tiffin, an extra box, a special request. Unpaid ones roll into the customer's next invoice automatically.</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('extra_orders') }}">
+  <div class="field">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" value="{{ today }}" required>
+  </div>
+  <div class="field grow">
+    <label for="customer_id">Customer</label>
+    <select id="customer_id" name="customer_id" onchange="toggleGuest(this)" required>
+      <option value="" disabled selected>Choose…</option>
+      <option value="__guest__">Walk-in / guest (not a regular customer)</option>
+      {% for c in customer_list %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field grow" id="guestField" style="display:none;">
+    <label for="guest_name">Guest name</label>
+    <input type="text" id="guest_name" name="guest_name" placeholder="e.g. Rahul's friend">
+  </div>
+  <div class="field grow">
+    <label for="description">Description</label>
+    <input type="text" id="description" name="description" placeholder="e.g. Extra dinner box">
+  </div>
+  <div class="field">
+    <label for="amount">Amount ({{ cur }})</label>
+    <input type="number" id="amount" name="amount" step="1" min="0" required>
+  </div>
+  <div class="field">
+    <label style="display:flex; align-items:center; gap:6px; font-weight:400;">
+      <input type="checkbox" id="paid_now" name="paid_now" style="width:auto;" onchange="document.getElementById('modeField').style.display=this.checked?'flex':'none'"> Paid now
+    </label>
+  </div>
+  <div class="field" id="modeField" style="display:none;">
+    <label for="payment_mode">Mode</label>
+    <select id="payment_mode" name="payment_mode">
+      {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Add order</button>
+  </div>
+</form>
+
+<form class="filter-bar" method="GET" action="{{ url_for('extra_orders') }}">
+  <div class="field">
+    <label for="month">Month</label>
+    <select id="month" name="month" onchange="this.form.submit()">
+      <option value="">All time</option>
+      {% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym==month_filter }}>{{ m.label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status" onchange="this.form.submit()">
+      <option value="">All</option>
+      <option value="Paid" {{ 'selected' if status_filter=='Paid' }}>Paid</option>
+      <option value="Unpaid" {{ 'selected' if status_filter=='Unpaid' }}>Unpaid</option>
+    </select>
+  </div>
+</form>
+
+<div class="section-head">
+  <h2>All extra orders</h2>
+  <span class="hint">Unpaid total: {{ cur }}{{ "{:,.0f}".format(unpaid_total) }}</span>
+</div>
+
+{% if entries|length == 0 %}
+  <div class="empty-state">No extra orders logged for this filter.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Customer / Guest</th><th>Description</th><th class="num">Amount</th><th class="center">Status</th><th></th></tr></thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td>{{ e.date }}</td>
+      <td>{{ e.customer_name or e.guest_name or 'Walk-in' }}</td>
+      <td>{{ e.description or '' }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td>
+      <td class="center"><span class="badge {{ 'paid' if e.payment_status=='Paid' else 'unpaid' }}">{{ e.payment_status }}</span></td>
+      <td class="center">
+        <div class="row-actions">
+          {% if e.payment_status == 'Unpaid' and e.invoice_id %}
+          <a class="btn-link toggle" href="{{ url_for('invoice_detail', iid=e.invoice_id) }}">On invoice →</a>
+          {% elif e.payment_status == 'Unpaid' %}
+          <form method="POST" action="{{ url_for('mark_extra_paid', eid=e.id) }}" class="inline-form">
+            <input type="hidden" name="payment_mode" value="Cash">
+            <button class="btn-link toggle" type="submit">Mark paid</button>
+          </form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('delete_extra_order', eid=e.id) }}" onsubmit="return confirmAction('Remove this order?');" class="inline-form">
+            <button class="btn-link" type="submit">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="3">Total</td><td class="num">{{ cur }}{{ "{:,.0f}".format(total) }}</td><td colspan="2"></td></tr>
+  </tfoot>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleGuest(sel){
+  document.getElementById('guestField').style.display = (sel.value === '__guest__') ? 'flex' : 'none';
+}
+</script>
+{% endblock %}

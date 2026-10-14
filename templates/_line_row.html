@@ -1,0 +1,9 @@
+{% from "_macros.html" import ic, tip %}
+<div class="editor-row line" data-line>
+  <input type="hidden" name="line_id" value="{{ l.id }}">
+  <div class="field desc-col"><label class="sr">Description</label><input type="text" name="line_desc" value="{{ l.description }}" maxlength="200" placeholder="e.g. Delivery fee"></div>
+  <div class="field"><label class="sr">Quantity</label><input type="number" name="line_qty" value="{{ l.quantity }}" step="any" min="0.01" inputmode="decimal"></div>
+  <div class="field"><label class="sr">Price</label><input type="number" name="line_price" value="{{ l.unit_price }}" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+  <div class="calc" data-amount>—</div>
+  <button class="icon-link danger" type="button" data-remove-line title="Remove line" aria-label="Remove line">{{ ic('trash',16) }}</button>
+</div>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, tip, empty %}
+{% set active_tab = "help" %}
+{% block title %}Help & user guide — {{ biz.business_name }}{% endblock %}
+{% block content %}
+<div class="topbar"><div class="page-title">Help &amp; user guide</div></div>
+<div class="page-sub">Everything you need to run the app without outside help. On any screen, press <kbd>?</kbd> for help about that screen.</div>
+<div class="guide-hero"><div><h2>New here?</h2><p>A one-minute tour shows where everything is.</p></div><button class="btn" type="button" data-tour-open>Start the tour</button></div>
+<div class="guide-grid">
+  <nav class="guide-toc" aria-label="Guide sections">{% for s in sections %}<a href="#{{ s.id }}">{{ s.title }}</a>{% endfor %}<a href="#screens">Every screen</a><a href="#terms">Words used in the app</a></nav>
+  <div>
+    {% for s in sections %}<section class="guide-sec" id="{{ s.id }}"><h2>{{ s.title }}</h2><p class="intro">{{ s.intro }}</p><ol>{% for st in s.steps %}<li>{{ st }}</li>{% endfor %}</ol></section>{% endfor %}
+    <section class="guide-sec" id="screens"><h2>Every screen</h2><p class="intro">Open a screen to read what it does and how to use it.</p>
+      {% for key, h in pages.items() if h.steps or h.tips %}<details class="pg-help"><summary>{{ h.title }}</summary><div class="in"><p>{{ h.what }}</p>
+        {% if h.steps %}<ol>{% for x in h.steps %}<li>{{ x }}</li>{% endfor %}</ol>{% endif %}{% if h.tips %}<ul>{% for x in h.tips %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}</div></details>{% endfor %}</section>
+    <section class="guide-sec" id="terms"><h2>Words used in the app</h2><dl class="gloss">{% for t, d in glossary %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl></section>
+  </div>
+</div>
+{% endblock %}

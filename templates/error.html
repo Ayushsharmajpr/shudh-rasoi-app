@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ biz.business_name }}{% endblock %}
+{% block content %}
+<div class="error-page">
+  <div class="error-code">{{ code }}</div>
+  <h1 class="page-title">{{ title }}</h1>
+  <p class="page-sub">{{ message }}</p>
+  <div class="error-actions">
+    <a class="btn" href="{{ url_for('dashboard') }}">Go to dashboard</a>
+    <button type="button" class="btn secondary" onclick="history.back()">Go back</button>
+  </div>
+</div>
+{% endblock %}

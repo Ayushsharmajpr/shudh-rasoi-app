@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, tip, empty %}
+{% set active_tab = "billing" %}
+{% block title %}New invoice — {{ biz.business_name }}{% endblock %}
+{% block content %}
+{% set P = posted %}
+{% set line_rows = [] %}
+{% if P is not none %}{% set ids = P.getlist('line_id') %}{% set ds = P.getlist('line_desc') %}{% set qs = P.getlist('line_qty') %}{% set ps = P.getlist('line_price') %}
+  {% for n in range(ds|length) %}{% if line_rows.append({'id':'', 'description': ds[n], 'quantity': qs[n] if n < qs|length else '1', 'unit_price': ps[n] if n < ps|length else ''}) %}{% endif %}{% endfor %}{% endif %}
+<div class="crumbs"><a href="{{ url_for('billing') }}">Invoices</a> / New</div>
+<div class="topbar"><div class="page-title">New invoice</div></div>
+<div class="page-sub">Pick a customer and month — the plan, rate, leave days and unbilled extras fill in automatically. Adjust anything before creating.</div>
+{% if errors %}<div class="errors" role="alert"><strong>Please fix the following:</strong><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<form method="POST" action="{{ url_for('invoice_new') }}" id="newForm">
+<div class="panel"><h2>Who and when</h2><div class="form-grid">
+  <div class="field"><label for="customer_id" class="req">Customer</label>
+    <select id="customer_id" name="customer_id" required><option value="">Choose a customer…</option>
+      {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if (P is not none and P.get('customer_id')|string == c.id|string) or (P is none and pre_cid == c.id) }}>{{ c.name }}{{ ' (' ~ c.status ~ ')' if c.status != 'Active' }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="month" class="req">Month</label>
+    <select id="month" name="month" required>{% for m in month_options %}<option value="{{ m.ym }}" {{ 'selected' if m.ym == (P.get('month') if P is not none else pre_ym) }}>{{ m.label }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="generated_date" class="req">Invoice date</label><input id="generated_date" name="generated_date" type="date" required value="{{ P.get('generated_date') if P is not none else today }}"></div>
+  <div class="field"><label for="due_date">Due date</label><input id="due_date" name="due_date" type="date" value="{{ P.get('due_date') if P is not none else '' }}"></div>
+  <div class="span2" id="previewBox" class="preview-box" aria-live="polite"><div class="preview-box">Choose a customer to see the calculation.</div></div>
+</div></div>
+
+<div class="panel"><h2>Amount</h2><div class="form-grid">
+  <div class="field"><label for="subscription_amount" class="req">Subscription amount ({{ cur }}) {{ tip('Filled in from the customer\'s rate and leave days. Type a different amount to override it.') }}</label>
+    <input id="subscription_amount" name="subscription_amount" type="number" step="0.01" min="0" required inputmode="decimal" value="{{ P.get('subscription_amount') if P is not none else '' }}"></div>
+  <div class="field"><label>&nbsp;</label><button type="button" class="btn secondary" id="useCalc" hidden>Use calculated amount</button></div>
+</div></div>
+
+<div class="panel"><h2>Unbilled extra orders</h2><div id="extrasBox" class="panel-b hint">Choose a customer to see their unbilled extra orders.</div></div>
+
+{% include "_invoice_lines.html" %}
+
+<div class="panel"><h2>Customer details &amp; notes</h2><div class="form-grid">
+  <div class="field"><label for="bill_to_name">Name on invoice {{ tip('Leave empty to use the customer\'s name.') }}</label><input id="bill_to_name" name="bill_to_name" maxlength="120" value="{{ P.get('bill_to_name') if P is not none else '' }}"></div>
+  <div class="field"><label for="bill_to_contact">Contact on invoice</label><input id="bill_to_contact" name="bill_to_contact" maxlength="60" value="{{ P.get('bill_to_contact') if P is not none else '' }}"></div>
+  <div class="field span2"><label for="bill_to_area">Address / area on invoice</label><input id="bill_to_area" name="bill_to_area" maxlength="200" value="{{ P.get('bill_to_area') if P is not none else '' }}"></div>
+  <div class="field span2"><label for="notes">Notes</label><textarea id="notes" name="notes" rows="2" maxlength="1000">{{ P.get('notes') if P is not none else '' }}</textarea></div>
+</div></div>
+
+<div class="live-total no-print"><div><div class="big" id="liveTotal">—</div><div class="sub">Invoice total</div></div>
+  <div style="display:flex;gap:10px"><a class="btn secondary" href="{{ url_for('billing') }}">Cancel</a><button class="btn" type="submit">Create invoice</button></div></div>
+</form>
+{% endblock %}
+{% block scripts %}<script>
+var CUR='{{ cur }}';
+(function(){
+ var form=document.getElementById('newForm'),cust=form.customer_id,mon=form.month,pbox=document.getElementById('previewBox'),ebox=document.getElementById('extrasBox'),uc=document.getElementById('useCalc'),calc=null,seq=0;
+ function num(v){v=parseFloat(v);return isFinite(v)?v:0}
+ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+ function recalc(){var t=num(form.subscription_amount.value);
+  form.querySelectorAll('[name=attach_extra]:checked').forEach(function(c){t+=num(c.dataset.amt)});
+  form.querySelectorAll('[data-line]').forEach(function(r){var a=Math.round(num(r.querySelector('[name=line_qty]').value||1)*num(r.querySelector('[name=line_price]').value)*100)/100;r.querySelector('[data-amount]').textContent=r.querySelector('[name=line_price]').value===''?'—':fmtMoney(a,CUR);t+=a});
+  document.getElementById('liveTotal').textContent=fmtMoney(Math.round(t*100)/100,CUR)}
+ function load(keep){
+  if(!cust.value||!mon.value){return}
+  var my=++seq;pbox.innerHTML='<div class="preview-box"><span class="skel" style="width:60%"></span></div>';
+  fetch('/invoices/preview?customer_id='+cust.value+'&month='+mon.value,{headers:{'X-Requested-With':'fetch'},credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
+   if(my!==seq)return; if(!d.ok){pbox.innerHTML='<div class="notice bad">'+esc(d.error)+'</div>';return}
+   calc=d.calculated_amount; var h='';
+   if(d.existing)h+='<div class="notice warn"><div>'+esc(d.customer.name)+' already has invoice <strong>'+esc(d.existing.number)+'</strong> for '+esc(d.month_label)+'. <a href="/invoices/'+d.existing.id+'/edit">Edit it instead</a>.</div></div>';
+   if(d.month_closed)h+='<div class="notice info"><div>'+esc(d.month_label)+' is closed, so a new invoice can\'t be added to it until the month is reopened.</div></div>';
+   h+='<div class="preview-box"><strong>'+esc(d.plan_text)+'</strong> · '+esc(d.month_label)+'<br>'+fmtMoney(d.monthly_rate,CUR)+'/month ÷ '+d.days_in_period+' days = '+fmtMoney(d.daily_rate,CUR)+'/day × '+d.billable_days+' billable days'+(d.leave_days?' ('+d.leave_days+' leave days credited)':'')+' = <strong>'+fmtMoney(d.calculated_amount,CUR)+'</strong></div>';
+   pbox.innerHTML=h;
+   if(!keep||form.subscription_amount.value===''){form.subscription_amount.value=d.calculated_amount}
+   if(!form.due_date.value||!keep)form.due_date.value=d.due_date;
+   uc.hidden=false;
+   ebox.className='panel-b';ebox.innerHTML=d.extras.length?d.extras.map(function(e){return '<label style="display:flex;gap:8px;align-items:center;font-weight:500;padding:4px 0"><input type="checkbox" name="attach_extra" value="'+e.id+'" data-amt="'+e.amount+'" '+(e.in_month?'checked':'')+'> '+esc(e.date)+' · '+esc(e.description)+' · '+fmtMoney(e.amount,CUR)+'</label>'}).join(''):'<span class="hint">No unbilled extra orders for this customer.</span>';
+   recalc()}).catch(function(){pbox.innerHTML='<div class="notice bad"><div>Could not load the calculation. Check your connection and try again.</div></div>'});
+ }
+ cust.addEventListener('change',function(){form.subscription_amount.value='';load(false)});mon.addEventListener('change',function(){form.subscription_amount.value='';load(false)});
+ uc.addEventListener('click',function(){if(calc!==null){form.subscription_amount.value=calc;recalc()}});
+ form.addEventListener('input',recalc);form.addEventListener('change',recalc);
+ var lr=document.getElementById('lineRows'),none=document.getElementById('noLines');
+ document.getElementById('addLine').addEventListener('click',function(){lr.appendChild(document.getElementById('lineTpl').content.cloneNode(true));none.hidden=true;lr.lastElementChild.querySelector('[name=line_desc]').focus();recalc()});
+ lr.addEventListener('click',function(e){var b=e.target.closest('[data-remove-line]');if(b){b.closest('[data-line]').remove();none.hidden=!!lr.children.length;recalc()}});
+ if(cust.value)load(true);recalc();
+})();
+</script>{% endblock %}

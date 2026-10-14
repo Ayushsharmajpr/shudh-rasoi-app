@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% set active_tab = "personal_income" %}
+{% block title %}Personal income — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Personal income</div>
+</div>
+<div class="page-sub">Money that comes in from outside the tiffin business — a salary, side income, a gift, rent from another property. This is separate from your business revenue but still counts toward your real account balance on the Accounts page.</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('personal_income') }}">
+  <div class="field">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" value="{{ today }}" required>
+  </div>
+  <div class="field grow">
+    <label for="source">Source</label>
+    <input type="text" id="source" name="source" placeholder="e.g. Salary, Side income, Gift" required>
+  </div>
+  <div class="field grow">
+    <label for="description">Notes</label>
+    <input type="text" id="description" name="description" placeholder="optional">
+  </div>
+  <div class="field">
+    <label for="amount">Amount ({{ cur }})</label>
+    <input type="number" id="amount" name="amount" step="1" min="0" required>
+  </div>
+  <div class="field">
+    <label for="payment_mode">Received via</label>
+    <select id="payment_mode" name="payment_mode">
+      {% for m in payment_modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Log income</button>
+  </div>
+</form>
+
+<div class="section-head">
+  <h2>All entries</h2>
+  <span class="hint">{{ entries|length }} entries</span>
+</div>
+
+{% if entries|length == 0 %}
+  <div class="empty-state">No personal income logged yet.</div>
+{% else %}
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Date</th><th>Source</th><th>Notes</th><th class="center">Mode</th><th class="num">Amount</th><th></th></tr></thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td>{{ e.date }}</td>
+      <td>{{ e.source }}</td>
+      <td>{{ e.description or '' }}</td>
+      <td class="center">{{ e.payment_mode }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(e.amount) }}</td>
+      <td class="center">
+        <div class="row-actions">
+          <a class="btn-link toggle" href="{{ url_for('edit_personal_income', pid=e.id) }}">Edit</a>
+          <form method="POST" action="{{ url_for('delete_personal_income', pid=e.id) }}" onsubmit="return confirmAction('Remove this entry?');" class="inline-form">
+            <button class="btn-link" type="submit">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="4">Total</td><td class="num">{{ cur }}{{ "{:,.0f}".format(total) }}</td><td></td></tr>
+  </tfoot>
+</table>
+</div>
+{% endif %}
+
+{% endblock %}

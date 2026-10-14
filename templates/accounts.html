@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% set active_tab = "accounts" %}
+{% block title %}Accounts — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Accounts</div>
+  <div class="today-badge">Total across all modes: {{ cur }}{{ "{:,.0f}".format(total_balance) }}</div>
+</div>
+<div class="page-sub">Your real running balance per payment mode — opening balance plus everything that has ever moved in or out, all-time. This answers "how much do I actually have right now", not just this month's flow.</div>
+
+<div class="table-wrap">
+<table class="ledger">
+  <thead><tr><th>Mode</th><th class="num">Opening balance</th><th class="num">Total in</th><th class="num">Total out</th><th class="num">Current balance</th></tr></thead>
+  <tbody>
+    {% for b in balances %}
+    <tr>
+      <td>{{ b.mode }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(b.opening) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(b['in']) }}</td>
+      <td class="num">{{ cur }}{{ "{:,.0f}".format(b.out) }}</td>
+      <td class="num">
+        <span class="money {{ 'pending' if b.balance < 0 else 'settled' }}" style="{{ 'color:var(--green); font-weight:600;' if b.balance >= 0 }}">{{ cur }}{{ "{:,.0f}".format(b.balance) }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="4">Total</td><td class="num">{{ cur }}{{ "{:,.0f}".format(total_balance) }}</td></tr>
+  </tfoot>
+</table>
+</div>
+
+<div class="page-sub mt-0">"In" includes business revenue, extra orders, and personal income. "Out" includes business expenses, personal expenses, and savings deposits. Set your opening balances from <a href="{{ url_for('settings_page') }}">Settings</a> if you were already holding money before you started using this app.</div>
+
+{% endblock %}

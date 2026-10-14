@@ -1,0 +1,157 @@
+{% from "_macros.html" import ic, tip, empty with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#14532d">
+<title>{% block title %}{{ biz.business_name or 'Shudh Rasoi' }}{% endblock %}</title>
+{% if brand.logo %}<link rel="icon" type="image/png" href="{{ brand.logo.url }}">{% else %}<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%2314532d%22/><text x=%2216%22 y=%2222%22 font-family=%22Georgia,serif%22 font-size=%2215%22 font-weight=%22bold%22 fill=%22%23fbbf24%22 text-anchor=%22middle%22>SR</text></svg>">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+{# ---- navigation: everything that belongs together lives in one group ---- #}
+{% set NAV = [
+ ('', [('dashboard','Dashboard','dashboard','home')]),
+ ('People', [('customers','Customers','customers','users'),('pgs','PG houses','pgs','building')]),
+ ('Daily work', [('daily','Daily tracking','daily','check'),('extra_orders','Extra orders','extra_orders','bag')]),
+ ('Billing', [('billing','Invoices','billing','file'),('payments','Payments','payments','rupee'),('dues','Dues','dues','alert')]),
+ ('Money', [('expenses','Expenses','expenses','receipt'),('savings','Savings &amp; FD','savings','piggy'),('personal_income','Personal income','personal_income','wallet'),('accounts','Cash &amp; bank','accounts','card')]),
+ ('Reports', [('reports','Profit &amp; loss','reports','chart'),('monthly','Monthly summary','monthly','cal'),('history','Month history','history','clock')])
+] %}
+{% set tab = active_tab|default('') %}
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="app-shell" id="appShell">
+  <div class="sidebar-backdrop" data-nav-close></div>
+
+  <aside class="sidebar" aria-label="Main navigation">
+    <div class="brand-block">
+      {% if brand.logo %}<div class="brand-mark has-logo"><img src="{{ brand.logo.url }}" alt=""></div>{% else %}<div class="brand-mark">SR</div>{% endif %}
+      <div class="brand-text"><div class="name">{{ biz.business_name or 'Shudh Rasoi' }}</div><div class="tag">Tiffin business manager</div></div>
+      <button class="drawer-close" data-nav-close aria-label="Close menu" type="button">{{ ic('x') }}</button>
+    </div>
+    <nav class="side-nav">
+      {% for group, items in NAV %}
+        {% if group %}<div class="side-nav-section">{{ group }}</div>{% endif %}
+        {% for key, label, endpoint, icon in items %}
+        <a href="{{ url_for(endpoint) }}" class="{{ 'active' if tab==key }}" {% if tab==key %}aria-current="page"{% endif %}>{{ ic(icon) }}<span>{{ label|safe }}</span></a>
+        {% endfor %}
+      {% endfor %}
+    </nav>
+    <div class="sidebar-footer">
+      <a href="{{ url_for('help_page') }}" class="{{ 'active' if tab=='help' }}">{{ ic('book') }}<span>Help &amp; user guide</span></a>
+      <a href="{{ url_for('settings_page') }}" class="{{ 'active' if tab=='settings' }}">{{ ic('cog') }}<span>Settings &amp; backup</span></a>
+      <a href="{{ url_for('export_excel') }}">{{ ic('dl') }}<span>Export to Excel</span></a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="appbar">
+      <button class="icon-btn only-mobile" data-nav-open aria-label="Open menu" type="button">{{ ic('menu', 22) }}</button>
+      <div class="appbar-brand only-mobile">{% if brand.logo %}<div class="brand-mark has-logo sm"><img src="{{ brand.logo.url }}" alt=""></div>{% else %}<div class="brand-mark sm">SR</div>{% endif %}</div>
+      <button class="search-trigger" data-search-open type="button" aria-label="Search customers, invoices and pages">
+        {{ ic('search', 16) }}<span class="st-text">Search customers, invoices, pages…</span><kbd>Ctrl K</kbd>
+      </button>
+      <div class="appbar-actions">
+        <details class="menu">
+          <summary class="btn sm" aria-label="Create new">{{ ic('plus', 16) }}<span class="hide-sm">New</span></summary>
+          <div class="menu-pop right" role="menu">
+            <a role="menuitem" href="{{ url_for('invoice_new') }}">{{ ic('file', 16) }}Invoice</a>
+            <a role="menuitem" href="{{ url_for('payments') }}">{{ ic('rupee', 16) }}Payment</a>
+            <a role="menuitem" href="{{ url_for('expenses') }}">{{ ic('receipt', 16) }}Expense</a>
+            <a role="menuitem" href="{{ url_for('extra_orders') }}">{{ ic('bag', 16) }}Extra order</a>
+            <a role="menuitem" href="{{ url_for('customers') }}">{{ ic('users', 16) }}Customer</a>
+          </div>
+        </details>
+        <button class="icon-btn" data-help-open type="button" aria-label="Help for this page (press ?)" title="Help for this page (?)">{{ ic('help', 20) }}</button>
+        <details class="menu">
+          <summary class="user-chip" aria-label="Account menu"><span class="avatar">{{ (current_user or '?')[:1]|upper }}</span><span class="hide-sm">{{ current_user }}</span>{{ ic('chev', 14) }}</summary>
+          <div class="menu-pop right" role="menu">
+            <div class="menu-head">Signed in as <strong>{{ current_user }}</strong></div>
+            <a role="menuitem" href="{{ url_for('account') }}">{{ ic('shield', 16) }}Account &amp; password</a>
+            <a role="menuitem" href="{{ url_for('settings_page') }}">{{ ic('cog', 16) }}Settings &amp; backup</a>
+            <a role="menuitem" href="{{ url_for('help_page') }}">{{ ic('book', 16) }}Help &amp; user guide</a>
+            <form method="POST" action="{{ url_for('logout') }}" class="menu-form"><button type="submit" role="menuitem" class="menu-btn">{{ ic('logout', 16) }}Sign out</button></form>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <main id="main" class="content" tabindex="-1">
+      {% if must_change_credentials and request.endpoint != 'account' %}
+      <div class="notice warn" role="alert">
+        {{ ic('shield', 18) }}
+        <div><strong>Change your starting sign-in.</strong> You're still using the first-time username and password. Anyone who knows them can open this app.</div>
+        <a class="btn sm" href="{{ url_for('account') }}">Change now</a>
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+      <footer class="app-footer">Shudh Rasoi · Made by Ayush · Your data is stored in tiffin.db on this computer</footer>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Quick navigation">
+    {% for key, label, endpoint, icon in [('dashboard','Home','dashboard','home'),('customers','Customers','customers','users'),('daily','Daily','daily','check'),('billing','Invoices','billing','file'),('expenses','Money','expenses','receipt')] %}
+    <a href="{{ url_for(endpoint) }}" class="{{ 'active' if tab==key or (key=='billing' and tab in ['payments','dues']) or (key=='expenses' and tab in ['savings','personal_income','accounts']) }}">{{ ic(icon,21) }}<span>{{ label }}</span></a>
+    {% endfor %}
+  </nav>
+</div>
+
+{# ---- help drawer ---- #}
+<aside id="helpDrawer" class="help-drawer" aria-hidden="true" aria-label="Help for this page">
+  <div class="hd-head"><h2>{{ page_help.title if page_help else 'Help' }}</h2><button id="helpClose" class="icon-btn" type="button" aria-label="Close help">{{ ic('x') }}</button></div>
+  <div class="hd-body">
+    {% if page_help %}
+      <p class="hd-what">{{ page_help.what }}</p>
+      {% if page_help.steps %}<h3>How to use it</h3><ol>{% for s in page_help.steps %}<li>{{ s }}</li>{% endfor %}</ol>{% endif %}
+      {% if page_help.tips %}<h3>Good to know</h3><ul>{% for s in page_help.tips %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+    {% else %}
+      <p class="hd-what">Use the sidebar to move between screens. Press <kbd>Ctrl K</kbd> to search anything.</p>
+    {% endif %}
+    <h3>Shortcuts</h3>
+    <ul class="kbd-list"><li><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd> search</li><li><kbd>?</kbd> this help</li><li><kbd>Esc</kbd> close windows</li></ul>
+    <div class="hd-actions">
+      <a class="btn secondary sm" href="{{ url_for('help_page') }}">{{ ic('book', 16) }}Full user guide</a>
+      <button class="btn secondary sm" type="button" data-tour-open>{{ ic('send', 16) }}Take the tour</button>
+    </div>
+  </div>
+</aside>
+
+{# ---- confirm dialog ---- #}
+<dialog id="confirmDlg" class="dlg" aria-labelledby="confirmTitle">
+  <div class="dlg-body">
+    <h2 id="confirmTitle">Please confirm</h2>
+    <p id="confirmMsg"></p>
+  </div>
+  <div class="dlg-foot"><button class="btn secondary" id="confirmNo" type="button">Cancel</button><button class="btn" id="confirmYes" type="button">Continue</button></div>
+</dialog>
+
+{# ---- global search ---- #}
+<dialog id="palette" class="dlg palette" aria-label="Search">
+  <div class="pal-top">{{ ic('search', 18) }}<input id="paletteInput" type="search" autocomplete="off" placeholder="Search customers, invoice numbers, pages…" role="combobox" aria-expanded="true" aria-controls="paletteList" aria-label="Search"><kbd>Esc</kbd></div>
+  <ul id="paletteList" role="listbox" class="pal-list"></ul>
+</dialog>
+
+{# ---- first-run tour ---- #}
+<dialog id="tourDlg" class="dlg tour" aria-labelledby="tourTitle" data-auto="{{ '1' if needs_onboarding and request.endpoint == 'dashboard' else '0' }}">
+  <div class="dlg-body">
+    <div id="tourProg" class="tour-prog"></div>
+    <h2 id="tourTitle"></h2>
+    <p id="tourBody"></p>
+  </div>
+  <div class="dlg-foot spread"><button class="btn-link" id="tourSkip" type="button">Skip tour</button><span><button class="btn secondary" id="tourPrev" type="button">Back</button> <button class="btn" id="tourNext" type="button">Next</button></span></div>
+  <script type="application/json" id="tourData">{{ tour_steps|tojson }}</script>
+</dialog>
+
+<div class="toast-stack" id="toastStack" aria-live="polite">
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}
+  <div class="toast {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}"><span>{{ message }}</span><button class="close-toast" type="button" aria-label="Dismiss" onclick="this.parentElement.remove()">×</button></div>
+  {% endfor %}{% endwith %}
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% set active_tab = "personal_income" %}
+{% block title %}Edit income entry — {{ biz.business_name }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="page-title">Edit income entry</div>
+  <a href="{{ url_for('personal_income') }}" class="today-badge">← All income</a>
+</div>
+
+<form class="entry-form" method="POST" action="{{ url_for('edit_personal_income', pid=e.id) }}">
+  <div class="field">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" value="{{ e.date }}" required>
+  </div>
+  <div class="field grow">
+    <label for="source">Source</label>
+    <input type="text" id="source" name="source" value="{{ e.source }}" required>
+  </div>
+  <div class="field grow">
+    <label for="description">Notes</label>
+    <input type="text" id="description" name="description" value="{{ e.description or '' }}">
+  </div>
+  <div class="field">
+    <label for="amount">Amount ({{ cur }})</label>
+    <input type="number" id="amount" name="amount" step="1" min="0" value="{{ e.amount }}" required>
+  </div>
+  <div class="field">
+    <label for="payment_mode">Received via</label>
+    <select id="payment_mode" name="payment_mode">
+      {% for m in payment_modes %}<option value="{{ m }}" {{ 'selected' if e.payment_mode==m }}>{{ m }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <button class="btn" type="submit">Save changes</button>
+  </div>
+</form>
+{% endblock %}
